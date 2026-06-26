@@ -1,0 +1,7 @@
+---
+# `app` and `enable_units` are the deliberate public parameters of the
+# `application` role — documented in roles/application/meta/argument_specs.yml
+# and intentionally left unprefixed for a clean call site. Role-internal
+# variables still use the `application_` prefix.
+skip_list:
+  - var-naming[no-role-prefix]

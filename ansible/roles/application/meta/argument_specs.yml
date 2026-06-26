@@ -1,0 +1,15 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy one app's Quadlet files, systemd units, and config.
+    options:
+      app:
+        type: str
+        required: true
+        description: App directory name under application_apps_dir.
+      enable_units:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: systemd unit names to enable at boot and start now.

@@ -1,0 +1,22 @@
+---
+# Source of app definitions on the Ansible controller.
+# Layout:  {{ application_apps_dir }}/{{ app }}/{quadlet,unit,config}
+#   quadlet/  -> Podman Quadlet files (*.container, *.pod, *.network, *.volume, ...)
+#   unit/     -> plain systemd unit files (*.service, *.timer, *.socket, ...)
+#   config/   -> arbitrary config tree, copied recursively to the host
+application_apps_dir: "{{ playbook_dir }}/../apps"
+
+# Destinations on the target host.
+application_system_dir: /etc/containers/systemd   # Quadlet files (read by the generator)
+application_unit_dir: /etc/systemd/system         # plain systemd units
+application_config_root: /var/app                 # config lands in {{ root }}/{app}/config
+
+# Ownership / permissions applied to everything this role installs.
+application_owner: root
+application_group: root
+application_file_mode: "0644"
+application_dir_mode: "0755"
+
+# --- Per-invocation parameters (passed as role params, see README) -------
+# app:          REQUIRED — the app directory name under application_apps_dir.
+# enable_units: optional — systemd unit names to enable at boot and start now.

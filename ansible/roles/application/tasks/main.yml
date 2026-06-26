@@ -1,0 +1,77 @@
+---
+# Deploys one app and (optionally) enables + starts its units.
+# Role params:
+#   app          REQUIRED — app directory name under application_apps_dir
+#   enable_units optional — systemd unit names to enable at boot and start now
+
+- name: Validate role input
+  ansible.builtin.assert:
+    that:
+      - app is defined
+      - app | string | length > 0
+    fail_msg: >-
+      The 'application' role requires an 'app' parameter — the app directory
+      name under {{ application_apps_dir }}.
+    quiet: true
+
+- name: "Install Quadlet files for app {{ app }}"
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ application_system_dir }}/"
+    owner: "{{ application_owner }}"
+    group: "{{ application_group }}"
+    mode: "{{ application_file_mode }}"
+  loop: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ app ~ '/quadlet/*') }}"
+  notify: Reload systemd
+
+- name: "Install systemd units for app {{ app }}"
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ application_unit_dir }}/"
+    owner: "{{ application_owner }}"
+    group: "{{ application_group }}"
+    mode: "{{ application_file_mode }}"
+  loop: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ app ~ '/unit/*') }}"
+  notify: Reload systemd
+
+- name: "Check for config directory of app {{ app }}"
+  ansible.builtin.stat:
+    path: "{{ application_apps_dir }}/{{ app }}/config"
+  delegate_to: localhost
+  become: false
+  register: application_config_dir
+
+- name: "Deploy config tree for app {{ app }}"
+  ansible.builtin.copy:
+    src: "{{ application_apps_dir }}/{{ app }}/config/"
+    dest: "{{ application_config_root }}/{{ app }}/config/"
+    owner: "{{ application_owner }}"
+    group: "{{ application_group }}"
+    mode: "{{ application_file_mode }}"
+    directory_mode: "{{ application_dir_mode }}"
+  when: application_config_dir.stat.exists and application_config_dir.stat.isdir
+
+# Regenerate Quadlet-derived services and pick up new unit files before we
+# touch their state. Handlers notified above run here, not at end of play.
+- name: Apply unit changes (systemd daemon-reload)
+  ansible.builtin.meta: flush_handlers
+
+- name: "Start units for app {{ app }}"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+  loop: "{{ enable_units | default([]) }}"
+
+# Quadlet-generated services live in /run and are "transient or generated",
+# so `systemctl enable` on them fails — boot persistence comes from their
+# [Install] section instead. Tolerate exactly that case; fail on anything else.
+- name: "Enable boot-start of units for app {{ app }}"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+  loop: "{{ enable_units | default([]) }}"
+  register: application_enable_result
+  failed_when:
+    - application_enable_result is failed
+    - "'transient or generated' not in (application_enable_result.msg | default(''))"
+    - "'no installation config' not in (application_enable_result.msg | default('') | lower)"

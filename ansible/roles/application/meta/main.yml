@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  role_name: application
+  author: infra
+  description: >-
+    Deploy one app's Podman Quadlet files, plain systemd units, and config
+    from a source directory, then enable and start selected units.
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Debian
+      versions: [all]
+    - name: Ubuntu
+      versions: [all]
+dependencies: []
