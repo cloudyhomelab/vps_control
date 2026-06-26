@@ -1,0 +1,17 @@
+name: Deploy Application
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ansible/apps/**'
+      - 'ansible/playbooks/deploy_apps.yml'
+      - 'ansible/roles/application/**'
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/ansible-run.yml
+    with:
+      playbook: playbooks/deploy_apps.yml
+    secrets: inherit

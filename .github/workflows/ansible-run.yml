@@ -1,0 +1,73 @@
+name: Run Ansible Playbook
+
+# Generic, reusable workflow: runs any playbook under ansible/ against the VPS.
+# Call it from another workflow:
+#
+#   jobs:
+#     deploy:
+#       uses: ./.github/workflows/ansible-run.yml
+#       with:
+#         playbook: playbooks/deploy_apps.yml
+#       secrets: inherit
+
+on:
+  workflow_call:
+    inputs:
+      playbook:
+        description: 'Playbook path, relative to the ansible/ directory'
+        required: true
+        type: string
+      extra_vars:
+        description: 'Optional extra vars passed to ansible-playbook via -e'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      VPS_SSH_KEY:
+        required: true
+      VPS_HOST:
+        required: true
+      VPS_USER:
+        required: true
+
+jobs:
+  run-playbook:
+    name: Run ${{ inputs.playbook }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: |
+          pip install --upgrade pip
+          pip install ansible
+
+      - name: Write SSH private key to file
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+
+      - name: Run Ansible playbook
+        working-directory: ansible
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          PLAYBOOK: ${{ inputs.playbook }}
+          EXTRA_VARS: ${{ inputs.extra_vars }}
+        run: |
+          set -eu
+          ARGS="-i ${VPS_HOST}, -u ${VPS_USER} --private-key ${HOME}/.ssh/vps_key"
+          if [ -n "${EXTRA_VARS}" ]; then
+            ansible-playbook ${ARGS} -e "${EXTRA_VARS}" "${PLAYBOOK}" -v
+          else
+            ansible-playbook ${ARGS} "${PLAYBOOK}" -v
+          fi
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/vps_key
