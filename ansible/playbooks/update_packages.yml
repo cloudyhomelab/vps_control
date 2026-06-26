@@ -4,6 +4,10 @@
   become: true
   gather_facts: true
 
+  vars:
+    # Default OFF. Override at runtime with -e do_reboot=true for a supervised reboot.
+    do_reboot: false
+
   tasks:
     - name: Update apt cache
       ansible.builtin.apt:
@@ -28,5 +32,20 @@
 
     - name: Notify if reboot is needed
       ansible.builtin.debug:
-        msg: "NOTICE: A reboot is required on {{ inventory_hostname }}"
+        msg: >-
+          NOTICE: A reboot is required on {{ inventory_hostname }}.
+          {{ 'Rebooting now (do_reboot=true).' if do_reboot | bool
+             else 'Skipping — re-run with do_reboot=true to reboot.' }}
       when: reboot_required_file.stat.exists
+
+    # Only reboots when explicitly requested AND actually needed.
+    # The module waits for the host to come back and fails if it does not.
+    - name: Reboot if required and approved
+      ansible.builtin.reboot:
+        msg: "Reboot triggered by Ansible after package update"
+        reboot_timeout: 600          # fail if host doesn't return within 10 min
+        post_reboot_delay: 15
+        test_command: uptime
+      when:
+        - reboot_required_file.stat.exists
+        - do_reboot | bool
