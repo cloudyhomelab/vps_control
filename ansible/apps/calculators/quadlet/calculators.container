@@ -1,0 +1,18 @@
+[Unit]
+Description=Calculators web app
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.io/binarycodes/calculators:latest
+ContainerName=calculators
+AutoUpdate=registry
+# Internal-only: reachable as calculators:8080 over the shared network; the
+# reverse proxy is the sole host-facing ingress.
+Network=web.network
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target default.target

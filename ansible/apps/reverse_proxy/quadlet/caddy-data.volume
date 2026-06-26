@@ -1,0 +1,4 @@
+[Unit]
+Description=Caddy data volume (TLS certificates and keys)
+
+[Volume]

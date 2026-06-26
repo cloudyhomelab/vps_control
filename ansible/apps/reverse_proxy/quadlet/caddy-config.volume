@@ -1,0 +1,4 @@
+[Unit]
+Description=Caddy config volume (autosaved JSON config)
+
+[Volume]

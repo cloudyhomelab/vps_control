@@ -1,0 +1,30 @@
+---
+- name: Deploy Podman Quadlet apps
+  hosts: all
+  become: true
+  gather_facts: true
+
+  roles:
+    # Deploy the shared network first so it exists before any container that
+    # joins it (Network=web.network) is started.
+    - role: application
+      app: shared
+
+    - role: application
+      app: calculators
+      enable_units:
+        - calculators.service
+
+    - role: application
+      app: reverse_proxy
+      enable_units:
+        - caddy.service
+
+  post_tasks:
+    # Host-wide timer that runs `podman auto-update` daily (00:00 + up to
+    # 15 min jitter), refreshing every container marked AutoUpdate=registry.
+    - name: Enable the Podman auto-update timer
+      ansible.builtin.systemd:
+        name: podman-auto-update.timer
+        enabled: true
+        state: started

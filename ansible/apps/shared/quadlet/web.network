@@ -1,0 +1,4 @@
+[Unit]
+Description=Shared web network (reverse proxy <-> upstreams)
+
+[Network]

@@ -1,0 +1,13 @@
+{
+	# Use only the TLS-ALPN-01 challenge (over 443); never rely on port 80.
+	auto_https disable_redirects
+}
+
+calc.cloudyhome.org {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+	reverse_proxy calculators:8080
+}
