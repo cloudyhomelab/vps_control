@@ -1,0 +1,45 @@
+name: VPS Package Update
+
+on:
+  schedule:
+    # Runs every Sunday at 02:00 UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  update-packages:
+    name: Run Ansible Package Update
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: |
+          pip install --upgrade pip
+          pip install ansible
+
+      - name: Write SSH private key to file
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+
+      - name: Run Ansible playbook
+        working-directory: ansible
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ansible-playbook \
+            -i "${VPS_HOST}," \
+            -u "${VPS_USER}" \
+            --private-key ~/.ssh/vps_key \
+            playbooks/update_packages.yml -v
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/vps_key
