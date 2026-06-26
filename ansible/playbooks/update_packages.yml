@@ -9,7 +9,13 @@
     do_reboot: false
     # Packages to ensure are present on the host. Extend as needed.
     packages:
+      - aardvark-dns
+      - catatonit
+      - fuse-overlayfs
+      - nftables
+      - passt
       - podman
+      - uidmap
 
   tasks:
     - name: Update apt cache
