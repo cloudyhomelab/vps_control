@@ -7,6 +7,9 @@
   vars:
     # Default OFF. Override at runtime with -e do_reboot=true for a supervised reboot.
     do_reboot: false
+    # Packages to ensure are present on the host. Extend as needed.
+    packages:
+      - podman
 
   tasks:
     - name: Update apt cache
@@ -24,6 +27,16 @@
     - name: Print upgrade summary
       ansible.builtin.debug:
         msg: "Upgraded packages: {{ upgrade_result.stdout_lines | default(['No output']) }}"
+
+    - name: Ensure required packages are installed
+      ansible.builtin.apt:
+        name: "{{ packages }}"
+        state: present
+      register: install_result
+
+    - name: Print installed packages
+      ansible.builtin.debug:
+        msg: "Ensured present: {{ packages | join(', ') }}"
 
     - name: Check if reboot is required
       ansible.builtin.stat:
