@@ -1,0 +1,8 @@
+{{ domain }} {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+	reverse_proxy {{ name }}:{{ port | default(simple_container_port) }}
+}

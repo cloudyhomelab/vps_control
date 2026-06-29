@@ -1,0 +1,12 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+# Caddy reads route snippets from the mounted conf.d dir at startup, so it must
+# be restarted to pick up an added or changed route. Guarded in the notifying
+# task so this only fires once the reverse proxy is actually deployed.
+- name: Reload caddy
+  ansible.builtin.systemd:
+    name: "{{ simple_container_caddy_unit }}"
+    state: restarted

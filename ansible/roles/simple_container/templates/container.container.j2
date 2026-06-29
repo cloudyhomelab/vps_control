@@ -1,0 +1,28 @@
+[Unit]
+Description={{ description | default(name ~ ' container') }}
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image={{ image }}
+ContainerName={{ name }}
+AutoUpdate=registry
+Network={{ network | default(simple_container_network) }}
+{% for key, value in (env | default({})).items() %}
+Environment={{ key }}={{ value }}
+{% endfor %}
+{% for vol in volumes | default([]) %}
+Volume={{ vol }}
+{% endfor %}
+{% for pub in publish_ports | default([]) %}
+PublishPort={{ pub }}
+{% endfor %}
+{% for line in extra_options | default([]) %}
+{{ line }}
+{% endfor %}
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target default.target

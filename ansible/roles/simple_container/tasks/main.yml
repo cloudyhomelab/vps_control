@@ -1,0 +1,70 @@
+---
+# Deploys a single-image web app behind the reverse proxy from a minimal spec.
+# Role params (see README):
+#   name   REQUIRED — container name / quadlet basename / network DNS name
+#   image  REQUIRED — full image reference
+#   domain optional — public hostname; when set, a Caddy route is registered
+#   port   optional — internal upstream port for the route (default 8080)
+
+- name: Validate role input
+  ansible.builtin.assert:
+    that:
+      - name is defined
+      - name | string | length > 0
+      - image is defined
+      - image | string | length > 0
+    fail_msg: >-
+      The 'simple_container' role requires 'name' (container name) and 'image'
+      (full image reference) parameters.
+    quiet: true
+
+- name: "Render Quadlet for container {{ name }}"
+  ansible.builtin.template:
+    src: container.container.j2
+    dest: "{{ simple_container_system_dir }}/{{ name }}.container"
+    owner: "{{ simple_container_owner }}"
+    group: "{{ simple_container_group }}"
+    mode: "{{ simple_container_file_mode }}"
+  notify: Reload systemd
+
+- name: "Ensure Caddy conf.d directory exists for route of {{ name }}"
+  ansible.builtin.file:
+    path: "{{ simple_container_caddy_confd }}"
+    state: directory
+    owner: "{{ simple_container_owner }}"
+    group: "{{ simple_container_group }}"
+    mode: "{{ simple_container_dir_mode }}"
+  when: domain is defined and (domain | string | length > 0)
+
+- name: "Register Caddy route for {{ name }}"
+  ansible.builtin.template:
+    src: caddy-site.caddy.j2
+    dest: "{{ simple_container_caddy_confd }}/{{ name }}.caddy"
+    owner: "{{ simple_container_owner }}"
+    group: "{{ simple_container_group }}"
+    mode: "{{ simple_container_file_mode }}"
+  when: domain is defined and (domain | string | length > 0)
+  notify: Reload caddy
+
+# Regenerate the Quadlet-derived service (and reload Caddy) before we touch unit
+# state. Handlers notified above run here, not at end of play.
+- name: Apply unit changes (systemd daemon-reload, Caddy reload)
+  ansible.builtin.meta: flush_handlers
+
+- name: "Start service for container {{ name }}"
+  ansible.builtin.systemd:
+    name: "{{ name }}.service"
+    state: started
+
+# Quadlet-generated services live in /run and are "transient or generated",
+# so `systemctl enable` on them fails — boot persistence comes from the
+# [Install] section instead. Tolerate exactly that case; fail on anything else.
+- name: "Enable boot-start for container {{ name }}"
+  ansible.builtin.systemd:
+    name: "{{ name }}.service"
+    enabled: true
+  register: simple_container_enable_result
+  failed_when:
+    - simple_container_enable_result is failed
+    - "'transient or generated' not in (simple_container_enable_result.msg | default(''))"
+    - "'no installation config' not in (simple_container_enable_result.msg | default('') | lower)"
