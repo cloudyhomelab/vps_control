@@ -8,7 +8,6 @@ on:
       - 'ansible/apps/**'
       - 'ansible/playbooks/deploy_apps.yml'
       - 'ansible/roles/application/**'
-      - 'ansible/roles/simple_container/**'
 
 permissions:
   contents: read

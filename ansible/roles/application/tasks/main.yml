@@ -1,77 +1,29 @@
 ---
-# Deploys one app and (optionally) enables + starts its units.
-# Role params:
-#   application_name         REQUIRED — app directory name under application_apps_dir
-#   application_enable_units optional — systemd unit names to enable at boot and start now
+# Deploys (state=present) or decommissions (state=absent) one app. Two kinds:
+#   source -> install Quadlet files, systemd units, and a config tree from a
+#             controller directory ({{ application_apps_dir }}/<name>/).
+#   simple -> render a single-container Quadlet from inline params (image, env, ...).
+# Both kinds optionally register a Caddy route. See README + defaults/main.yml.
 
 - name: Validate role input
   ansible.builtin.assert:
     that:
       - application_name is defined
       - application_name | string | length > 0
+      - application_kind is defined
+      - application_kind in ['source', 'simple']
+      # 'simple' renders from an image, so present requires one (absent does not).
+      - application_kind != 'simple' or application_state == 'absent' or (application_image is defined and (application_image | string | length > 0))
     fail_msg: >-
-      The 'application' role requires an 'application_name' parameter — the app
-      directory name under {{ application_apps_dir }}.
+      The 'application' role requires 'application_name' and 'application_kind'
+      (source|simple); a 'simple' app being deployed (state=present) also requires
+      'application_image'.
     quiet: true
 
-- name: "Install Quadlet files for app {{ application_name }}"
-  ansible.builtin.copy:
-    src: "{{ item }}"
-    dest: "{{ application_system_dir }}/"
-    owner: "{{ application_owner }}"
-    group: "{{ application_group }}"
-    mode: "{{ application_file_mode }}"
-  loop: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ application_name ~ '/quadlet/*') }}"
-  notify: Reload systemd
+- name: "Deploy app {{ application_name }}"
+  ansible.builtin.include_tasks: present.yml
+  when: application_state == 'present'
 
-- name: "Install systemd units for app {{ application_name }}"
-  ansible.builtin.copy:
-    src: "{{ item }}"
-    dest: "{{ application_unit_dir }}/"
-    owner: "{{ application_owner }}"
-    group: "{{ application_group }}"
-    mode: "{{ application_file_mode }}"
-  loop: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ application_name ~ '/unit/*') }}"
-  notify: Reload systemd
-
-- name: "Check for config directory of app {{ application_name }}"
-  ansible.builtin.stat:
-    path: "{{ application_apps_dir }}/{{ application_name }}/config"
-  delegate_to: localhost
-  become: false
-  register: application_config_dir
-
-- name: "Deploy config tree for app {{ application_name }}"
-  ansible.builtin.copy:
-    src: "{{ application_apps_dir }}/{{ application_name }}/config/"
-    dest: "{{ application_config_root }}/{{ application_name }}/config/"
-    owner: "{{ application_owner }}"
-    group: "{{ application_group }}"
-    mode: "{{ application_file_mode }}"
-    directory_mode: "{{ application_dir_mode }}"
-  when: application_config_dir.stat.exists and application_config_dir.stat.isdir
-
-# Regenerate Quadlet-derived services and pick up new unit files before we
-# touch their state. Handlers notified above run here, not at end of play.
-- name: Apply unit changes (systemd daemon-reload)
-  ansible.builtin.meta: flush_handlers
-
-- name: "Start units for app {{ application_name }}"
-  ansible.builtin.systemd:
-    name: "{{ item }}"
-    state: started
-  loop: "{{ application_enable_units | default([]) }}"
-
-# Quadlet-generated services live in /run and are "transient or generated",
-# so `systemctl enable` on them fails — boot persistence comes from their
-# [Install] section instead. Tolerate exactly that case; fail on anything else.
-- name: "Enable boot-start of units for app {{ application_name }}"
-  ansible.builtin.systemd:
-    name: "{{ item }}"
-    enabled: true
-  loop: "{{ application_enable_units | default([]) }}"
-  register: application_enable_result
-  failed_when:
-    - application_enable_result is failed
-    - "'transient or generated' not in (application_enable_result.msg | default(''))"
-    - "'no installation config' not in (application_enable_result.msg | default('') | lower)"
+- name: "Decommission app {{ application_name }}"
+  ansible.builtin.include_tasks: absent.yml
+  when: application_state == 'absent'

@@ -1,0 +1,28 @@
+[Unit]
+Description={{ application_description | default(application_name ~ ' container') }}
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image={{ application_image }}
+ContainerName={{ application_name }}
+AutoUpdate=registry
+Network={{ application_network }}
+{% for key, value in application_env.items() %}
+Environment={{ key }}={{ value }}
+{% endfor %}
+{% for vol in application_volumes %}
+Volume={{ vol }}
+{% endfor %}
+{% for pub in application_publish_ports %}
+PublishPort={{ pub }}
+{% endfor %}
+{% for line in application_extra_options %}
+{{ line }}
+{% endfor %}
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target default.target

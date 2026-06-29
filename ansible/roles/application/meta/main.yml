@@ -3,8 +3,10 @@ galaxy_info:
   role_name: application
   author: infra
   description: >-
-    Deploy one app's Podman Quadlet files, plain systemd units, and config
-    from a source directory, then enable and start selected units.
+    Deploy or decommission one app behind the reverse proxy: either install its
+    Podman Quadlet files, systemd units, and config from a source directory
+    (kind=source), or render a single-container Quadlet from inline params
+    (kind=simple). Optionally registers a Caddy route.
   license: MIT
   min_ansible_version: "2.14"
   platforms:

@@ -1,0 +1,59 @@
+---
+# Decommission an app: stop its units, then remove its Quadlet files, plain
+# systemd units, and Caddy route from the host. Each kind owns a different on-host
+# artifact, so removal is gated on application_kind:
+#   simple -> the rendered <name>.container.
+#   source -> the files installed from <name>/{quadlet,unit}/ (matched by source
+#             basename, so the same globs present.yml installs from drive removal).
+# Config/data under {{ application_config_root }}/{{ application_name }} is
+# deliberately left alone: it may hold persistent state, and reverse_proxy's tree
+# holds other apps' routes.
+
+# Stop while the generated units still exist; stopping a Quadlet service also
+# removes its container (ExecStopPost). Tolerate a unit that was never deployed
+# (or already removed) so a repeat decommission stays green.
+- name: "Stop units for app {{ application_name }}"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+  loop: "{{ application_managed_units }}"
+  register: application_stop_result
+  failed_when:
+    - application_stop_result is failed
+    - "'not loaded' not in (application_stop_result.msg | default('') | lower)"
+    - "'could not find' not in (application_stop_result.msg | default('') | lower)"
+
+- name: "Remove rendered Quadlet for container {{ application_name }}"
+  ansible.builtin.file:
+    path: "{{ application_system_dir }}/{{ application_name }}.container"
+    state: absent
+  when: application_kind == 'simple'
+  notify: Reload systemd
+
+- name: "Remove Quadlet files for app {{ application_name }}"
+  ansible.builtin.file:
+    path: "{{ application_system_dir }}/{{ item | basename }}"
+    state: absent
+  loop: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ application_name ~ '/quadlet/*') }}"
+  when: application_kind == 'source'
+  notify: Reload systemd
+
+- name: "Remove systemd units for app {{ application_name }}"
+  ansible.builtin.file:
+    path: "{{ application_unit_dir }}/{{ item | basename }}"
+    state: absent
+  loop: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ application_name ~ '/unit/*') }}"
+  when: application_kind == 'source'
+  notify: Reload systemd
+
+# Caddy route snippet, if the app registered one. The route stops resolving when
+# the deploy playbook reloads Caddy (post-task), as on the present path.
+- name: "Remove Caddy route for {{ application_name }}"
+  ansible.builtin.file:
+    path: "{{ application_caddy_confd }}/{{ application_name }}.caddy"
+    state: absent
+
+# Forget the now-removed generated units. Notified handler runs here, not at end
+# of play.
+- name: Apply unit changes (systemd daemon-reload)
+  ansible.builtin.meta: flush_handlers

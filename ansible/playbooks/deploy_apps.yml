@@ -8,29 +8,33 @@
     # Deploy the shared network first so it exists before any container that
     # joins it (Network=web.network) is started.
     - role: application
+      application_kind: source
       application_name: shared
 
     - role: application
+      application_kind: source
       application_name: calculators
       application_enable_units:
         - calculators.service
 
     - role: application
+      application_kind: source
       application_name: reverse_proxy
       application_enable_units:
         - caddy.service
 
     # Deployed after reverse_proxy so caddy.service exists when its route is registered.
-    - role: simple_container
-      simple_container_state: present
-      simple_container_name: nasplan
-      simple_container_image: docker.io/binarycodes/make-my-nas:latest
-      simple_container_port: 8080
-      simple_container_domain: nasplan.cloudyhome.org
+    - role: application
+      application_kind: simple
+      application_name: nasplan
+      application_image: docker.io/binarycodes/make-my-nas:latest
+      application_port: 8080
+      application_domain: nasplan.cloudyhome.org
 
-    - role: simple_container
-      simple_container_state: absent
-      simple_container_name: whoami
+    - role: application
+      application_state: absent
+      application_kind: simple
+      application_name: whoami
 
   post_tasks:
     # Per-app roles write route snippets but Caddy only applies them on reload,

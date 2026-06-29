@@ -1,5 +1,16 @@
 ---
-# Source of app definitions on the Ansible controller.
+# application_kind selects the deployment model and is REQUIRED at every call
+# site (deliberately no default, so the mode is always explicit):
+#   source -> install an app's files from a controller directory (see below).
+#   simple -> render a single-container Quadlet from inline params (image, env,
+#             volumes, ...) with no source directory. See README.
+
+# Lifecycle: 'present' deploys the app and starts its units; 'absent' stops those
+# units and removes the installed Quadlet files, systemd units, and Caddy route
+# (then delete the role call). Config/data is left in place. See README.
+application_state: present
+
+# Source of 'source'-kind app definitions on the Ansible controller.
 # Layout:  {{ application_apps_dir }}/<application_name>/{quadlet,unit,config}
 #   quadlet/  -> Podman Quadlet files (*.container, *.pod, *.network, *.volume, ...)
 #   unit/     -> plain systemd unit files (*.service, *.timer, *.socket, ...)
@@ -17,6 +28,46 @@ application_group: root
 application_file_mode: "0644"
 application_dir_mode: "0755"
 
+# Caddy auto-routing: when application_domain is set, a per-app route snippet
+# lands here and is imported by the Caddyfile (`import /etc/caddy/conf.d/*.caddy`),
+# so a routed app needs no edit to the central Caddyfile. Caddy is reloaded once
+# by the deploy playbook (post-task), not here.
+application_caddy_confd: /var/app/reverse_proxy/config/conf.d
+
+# Route target when application_domain is set. The upstream defaults to the app
+# name (the common case where ContainerName matches, including every 'simple'
+# app), but an app whose routable container is named differently overrides
+# application_upstream.
+application_port: 8080                       # internal upstream port for the Caddy route
+application_upstream: "{{ application_name }}"   # upstream host (container name on the shared network)
+
+# 'simple'-kind defaults for the rendered single container. Override at the call
+# site as needed; ignored by 'source'-kind apps (they declare these in their own
+# Quadlet files).
+application_network: web.network             # shared network the container joins
+application_env: {}                          # rendered as Environment= lines
+application_volumes: []                      # raw Volume= values
+application_publish_ports: []                # raw PublishPort= values
+application_extra_options: []                # extra raw [Container] lines
+
+# Units this role starts/enables (present) and stops (absent). A 'simple' app
+# renders exactly one <name>.service, so default to that when the caller names
+# none; a 'source' app starts nothing unless it lists units (boot comes from the
+# Quadlet [Install] section, e.g. the network-only 'shared' app has no service).
+application_managed_units: >-
+  {{ (application_enable_units | default([]))
+     if (application_enable_units | default([]) | length > 0)
+     else ([application_name ~ '.service'] if application_kind == 'simple' else []) }}
+
 # --- Per-invocation parameters (passed as role params, see README) -------
-# application_name:         REQUIRED — the app directory name under application_apps_dir.
+# application_kind:         REQUIRED — 'source' (files from a dir) or 'simple' (rendered container).
+# application_name:         REQUIRED — app dir name (source) / container name + Quadlet basename (simple).
+# application_state:        optional — present (default) deploys; absent decommissions.
 # application_enable_units: optional — systemd unit names to enable at boot and start now.
+# application_domain:       optional — public hostname; when set, a Caddy route is added.
+# application_upstream:     optional — upstream container name (default application_name).
+# application_port:         optional — upstream port (default 8080).
+# --- 'simple'-kind only ---
+# application_image:        REQUIRED for simple+present — full image ref, e.g. docker.io/org/app:latest.
+# application_description:  optional — unit description (default "<name> container").
+# application_network/env/volumes/publish_ports/extra_options: optional — see defaults above.

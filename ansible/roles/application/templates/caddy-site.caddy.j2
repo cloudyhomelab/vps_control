@@ -1,0 +1,8 @@
+{{ application_domain }} {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+	reverse_proxy {{ application_upstream }}:{{ application_port }}
+}

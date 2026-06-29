@@ -1,15 +1,93 @@
 ---
 argument_specs:
   main:
-    short_description: Deploy one app's Quadlet files, systemd units, and config.
+    short_description: Deploy or decommission one app — files from a directory (source) or a rendered single container (simple) — plus its route.
     options:
+      application_kind:
+        type: str
+        required: true
+        choices: [source, simple]
+        description: >-
+          source installs an app's Quadlet files, systemd units, and config tree
+          from a controller directory; simple renders a single-container Quadlet
+          from inline params (application_image, application_env, ...). Required.
+      application_state:
+        type: str
+        required: false
+        default: present
+        choices: [present, absent]
+        description: >-
+          present deploys the app and starts its units; absent stops those units
+          and removes the installed Quadlet files, systemd units, and Caddy route
+          (then delete the role call). Config/data is left in place.
       application_name:
         type: str
         required: true
-        description: App directory name under application_apps_dir.
+        description: >-
+          source: app directory name under application_apps_dir. simple: container
+          name, Quadlet basename, and network DNS name the reverse proxy resolves.
       application_enable_units:
         type: list
         elements: str
         required: false
         default: []
-        description: systemd unit names to enable at boot and start now.
+        description: >-
+          systemd unit names to enable at boot and start now. A simple app defaults
+          to its single <name>.service when none are given.
+      application_image:
+        type: str
+        required: false
+        description: >-
+          simple kind only. Full image reference, e.g. docker.io/org/app:latest.
+          Required when application_kind is simple and state is present (enforced
+          in the role); not needed for source apps or for absent.
+      application_description:
+        type: str
+        required: false
+        description: simple kind only. Unit description (default "<name> container").
+      application_network:
+        type: str
+        required: false
+        default: web.network
+        description: simple kind only. Podman network the rendered container joins.
+      application_env:
+        type: dict
+        required: false
+        default: {}
+        description: simple kind only. Environment variables rendered as Environment= lines.
+      application_volumes:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: simple kind only. Raw Quadlet Volume= values.
+      application_publish_ports:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: simple kind only. Raw Quadlet PublishPort= values for apps that need a host port.
+      application_extra_options:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: simple kind only. Extra raw lines appended to the [Container] section.
+      application_domain:
+        type: str
+        required: false
+        description: >-
+          Public hostname. When set, a Caddy route (domain -> upstream:port) is
+          written to the imported conf.d directory.
+      application_upstream:
+        type: str
+        required: false
+        description: >-
+          Upstream container name the route proxies to, as resolved on the shared
+          network. Defaults to application_name; override when the routable
+          container is named differently.
+      application_port:
+        type: int
+        required: false
+        default: 8080
+        description: Internal upstream port for the Caddy route.
