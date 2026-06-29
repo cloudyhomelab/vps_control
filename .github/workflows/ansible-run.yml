@@ -30,6 +30,10 @@ on:
       VPS_USER:
         required: true
 
+# Least privilege: this workflow only reads the repo and deploys over SSH.
+permissions:
+  contents: read
+
 jobs:
   run-playbook:
     name: Run ${{ inputs.playbook }}

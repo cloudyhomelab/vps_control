@@ -10,6 +10,9 @@ on:
       - 'ansible/roles/application/**'
       - 'ansible/roles/simple_container/**'
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     uses: ./.github/workflows/ansible-run.yml
