@@ -62,7 +62,7 @@
     - name: Reboot if required and approved
       ansible.builtin.reboot:
         msg: "Reboot triggered by Ansible after package update"
-        reboot_timeout: 600          # fail if host doesn't return within 10 min
+        reboot_timeout: 600
         post_reboot_delay: 15
         test_command: uptime
       when:

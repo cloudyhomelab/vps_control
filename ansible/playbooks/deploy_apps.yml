@@ -28,7 +28,6 @@
       simple_container_port: 8080
       simple_container_domain: nasplan.cloudyhome.org
 
-    # Decommission the old whoami demo. Remove this call after one successful deploy.
     - role: simple_container
       simple_container_state: absent
       simple_container_name: whoami
@@ -42,8 +41,7 @@
         name: caddy.service
         state: reloaded
 
-    # Host-wide timer that runs `podman auto-update` daily (00:00 + up to
-    # 15 min jitter), refreshing every container marked AutoUpdate=registry.
+    # Host-wide timer that runs `podman auto-update` refreshing every container marked AutoUpdate=registry.
     - name: Enable the Podman auto-update timer
       ansible.builtin.systemd:
         name: podman-auto-update.timer
