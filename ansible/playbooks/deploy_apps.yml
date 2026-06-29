@@ -28,6 +28,14 @@
       simple_container_domain: nasplan.cloudyhome.org
 
   post_tasks:
+    # Graceful, zero-downtime reload (via the unit's ExecReload) so Caddy picks
+    # up any added/changed route snippets and re-resolves recreated upstreams.
+    # Certs are reused from the caddy-data volume — no ACME re-issuance.
+    - name: Reload Caddy to apply route changes
+      ansible.builtin.systemd:
+        name: caddy.service
+        state: reloaded
+
     # Host-wide timer that runs `podman auto-update` daily (00:00 + up to
     # 15 min jitter), refreshing every container marked AutoUpdate=registry.
     - name: Enable the Podman auto-update timer

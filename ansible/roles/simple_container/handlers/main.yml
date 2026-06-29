@@ -2,14 +2,10 @@
 # Handler names are global to the play, so they are role-prefixed to avoid
 # colliding with the application role's "Reload systemd" handler (a collision
 # would let one role's notify trigger the other role's handler).
+#
+# Caddy is NOT reloaded here: routing is centralized, so the deploy playbook
+# issues a single graceful `systemctl reload caddy` post-task after every app
+# is in place (see playbooks/deploy_apps.yml and caddy.container's ExecReload).
 - name: Reload systemd (simple_container)
   ansible.builtin.systemd:
     daemon_reload: true
-
-# Caddy reads route snippets from the mounted conf.d dir at startup, so it must
-# be restarted to pick up an added or changed route. Guarded in the notifying
-# task so this only fires once the reverse proxy is actually deployed.
-- name: Reload caddy (simple_container)
-  ansible.builtin.systemd:
-    name: "{{ simple_container_caddy_unit }}"
-    state: restarted

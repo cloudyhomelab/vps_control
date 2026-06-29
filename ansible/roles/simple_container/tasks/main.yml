@@ -40,10 +40,10 @@
     group: "{{ simple_container_group }}"
     mode: "{{ simple_container_file_mode }}"
   when: simple_container_domain is defined and (simple_container_domain | string | length > 0)
-  notify: Reload caddy (simple_container)
 
-# Regenerate the Quadlet-derived service (and reload Caddy) before we touch unit
-# state. Handlers notified above run here, not at end of play.
+# Regenerate the Quadlet-derived service before we touch unit state. The handler
+# notified above runs here, not at end of play. (Caddy is reloaded once by the
+# deploy playbook as a post-task, not per app.)
 - name: Apply unit changes (systemd daemon-reload, Caddy reload)
   ansible.builtin.meta: flush_handlers
 

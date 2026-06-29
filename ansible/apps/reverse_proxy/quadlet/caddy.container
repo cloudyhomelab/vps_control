@@ -5,6 +5,7 @@ Wants=network-online.target
 
 [Container]
 Image=docker.io/library/caddy:latest
+ContainerName=caddy
 AutoUpdate=registry
 # Only 443 is published — TLS-ALPN-01 handles ACME over HTTPS, so port 80
 # is not needed (TCP for HTTPS, UDP for HTTP/3).
@@ -21,6 +22,10 @@ Volume=caddy-config.volume:/config
 
 [Service]
 Restart=always
+# Graceful, zero-downtime config reload via Caddy's admin API. `systemctl reload
+# caddy` (and the deploy playbook) trigger this; certs are reused from /data, so
+# no ACME re-issuance.
+ExecReload=/usr/bin/podman exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 
 [Install]
 WantedBy=multi-user.target default.target

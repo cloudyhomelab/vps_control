@@ -13,9 +13,9 @@ simple_container_extra_options: []          # extra raw [Container] lines
 
 # Caddy auto-routing: per-app snippets land here and are imported by the
 # Caddyfile (`import /etc/caddy/conf.d/*.caddy`). The reverse_proxy app mounts
-# this directory read-only into the Caddy container.
+# this directory read-only into the Caddy container. Caddy itself is reloaded
+# once by the deploy playbook (post-task), not by this role.
 simple_container_caddy_confd: /var/app/reverse_proxy/config/conf.d
-simple_container_caddy_unit: caddy.service
 
 # Ownership / permissions (match the `application` role).
 simple_container_owner: root

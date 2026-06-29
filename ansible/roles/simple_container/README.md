@@ -70,7 +70,6 @@ keeps them clear of Ansible footguns: a bare `name` is swallowed as the reserved
 | `simple_container_network`     | `web.network`                          | Default network to join.         |
 | `simple_container_port`        | `8080`                                 | Default internal upstream port.  |
 | `simple_container_caddy_confd` | `/var/app/reverse_proxy/config/conf.d` | Where route snippets are written.|
-| `simple_container_caddy_unit`  | `caddy.service`                        | Unit reloaded after a route change.|
 
 ## How Caddy routing stays per-app
 
@@ -78,9 +77,15 @@ The reverse proxy's `Caddyfile` ends with `import /etc/caddy/conf.d/*.caddy`,
 and the `reverse_proxy` app mounts the host directory
 `/var/app/reverse_proxy/config/conf.d` read-only at `/etc/caddy/conf.d`. Each
 `simple_container` invocation drops its own `<name>.caddy` snippet there, so apps
-never share or hand-edit a central file. Because Caddy reads the imported files
-at startup, the role restarts `caddy.service` when a snippet changes.
+never share or hand-edit a central file.
 
-This means the reverse proxy must already be deployed (so `caddy.service` exists)
-when a `simple_container` app with a `simple_container_domain` runs — deploy it
-**after** `reverse_proxy` in the playbook.
+Caddy reads the imported files at load time, so the **deploy playbook** issues a
+single graceful `systemctl reload caddy` as a post-task after all apps are in
+place (wired to the unit's `ExecReload`, which calls `caddy reload` over the
+admin API). This is zero-downtime and reuses existing certs — no ACME
+re-issuance. The role itself does **not** reload Caddy; routing is refreshed
+centrally so a recreated upstream is always picked up, even when its route text
+is unchanged.
+
+Deploy `reverse_proxy` **before** any `simple_container` app so `caddy.service`
+exists when the post-task reload runs.
