@@ -23,14 +23,14 @@ Each subdirectory is optional — an app may ship only a Quadlet, only config, e
 2. Copies `<app>/unit/*` to `/etc/systemd/system/`.
 3. Copies `<app>/config/` recursively to `/var/app/<app>/config/`.
 4. Runs `systemctl daemon-reload` (once, only if anything changed).
-5. Starts and enables each unit in `enable_units`.
+5. Starts and enables each unit in `application_enable_units`.
 
 ## Role parameters
 
-| Param          | Required | Purpose                                              |
-| -------------- | -------- | ---------------------------------------------------- |
-| `app`          | yes      | App directory name under `application_apps_dir`.     |
-| `enable_units` | no       | systemd unit names to enable at boot and start now.  |
+| Param                      | Required | Purpose                                              |
+| -------------------------- | -------- | ---------------------------------------------------- |
+| `application_name`         | yes      | App directory name under `application_apps_dir`.     |
+| `application_enable_units` | no       | systemd unit names to enable at boot and start now.  |
 
 ## Tunables (defaults)
 
@@ -43,7 +43,7 @@ Each subdirectory is optional — an app may ship only a Quadlet, only config, e
 
 ## Unit names and boot persistence
 
-`enable_units` takes the **generated** service name (the `.service` suffix is
+`application_enable_units` takes the **generated** service name (the `.service` suffix is
 optional):
 
 | Quadlet file      | Generated unit         |
@@ -65,7 +65,7 @@ Plain units in `unit/` are enabled normally.
   become: true
   roles:
     - role: application
-      app: calculators
-      enable_units:
+      application_name: calculators
+      application_enable_units:
         - calculators.service
 ```

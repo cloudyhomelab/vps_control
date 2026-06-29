@@ -1,23 +1,23 @@
 [Unit]
-Description={{ description | default(name ~ ' container') }}
+Description={{ simple_container_description | default(simple_container_name ~ ' container') }}
 After=network-online.target
 Wants=network-online.target
 
 [Container]
-Image={{ image }}
-ContainerName={{ name }}
+Image={{ simple_container_image }}
+ContainerName={{ simple_container_name }}
 AutoUpdate=registry
-Network={{ network | default(simple_container_network) }}
-{% for key, value in (env | default({})).items() %}
+Network={{ simple_container_network }}
+{% for key, value in simple_container_env.items() %}
 Environment={{ key }}={{ value }}
 {% endfor %}
-{% for vol in volumes | default([]) %}
+{% for vol in simple_container_volumes %}
 Volume={{ vol }}
 {% endfor %}
-{% for pub in publish_ports | default([]) %}
+{% for pub in simple_container_publish_ports %}
 PublishPort={{ pub }}
 {% endfor %}
-{% for line in extra_options | default([]) %}
+{% for line in simple_container_extra_options %}
 {{ line }}
 {% endfor %}
 

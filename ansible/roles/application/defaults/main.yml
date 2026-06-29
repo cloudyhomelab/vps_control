@@ -1,6 +1,6 @@
 ---
 # Source of app definitions on the Ansible controller.
-# Layout:  {{ application_apps_dir }}/{{ app }}/{quadlet,unit,config}
+# Layout:  {{ application_apps_dir }}/<application_name>/{quadlet,unit,config}
 #   quadlet/  -> Podman Quadlet files (*.container, *.pod, *.network, *.volume, ...)
 #   unit/     -> plain systemd unit files (*.service, *.timer, *.socket, ...)
 #   config/   -> arbitrary config tree, copied recursively to the host
@@ -18,5 +18,5 @@ application_file_mode: "0644"
 application_dir_mode: "0755"
 
 # --- Per-invocation parameters (passed as role params, see README) -------
-# app:          REQUIRED — the app directory name under application_apps_dir.
-# enable_units: optional — systemd unit names to enable at boot and start now.
+# application_name:         REQUIRED — the app directory name under application_apps_dir.
+# application_enable_units: optional — systemd unit names to enable at boot and start now.

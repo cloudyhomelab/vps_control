@@ -8,25 +8,25 @@
     # Deploy the shared network first so it exists before any container that
     # joins it (Network=web.network) is started.
     - role: application
-      app: shared
+      application_name: shared
 
     - role: application
-      app: calculators
-      enable_units:
+      application_name: calculators
+      application_enable_units:
         - calculators.service
 
     - role: application
-      app: reverse_proxy
-      enable_units:
+      application_name: reverse_proxy
+      application_enable_units:
         - caddy.service
 
     # Deployed after reverse_proxy so caddy.service exists when its route is registered.
     # Shipped internal-only; set `domain` once DNS for the host points here.
     - role: simple_container
-      name: whoami
-      image: docker.io/traefik/whoami:latest
-      app_port: 80
-      domain: whoami.cloudyhome.org
+      simple_container_name: whoami
+      simple_container_image: docker.io/traefik/whoami:latest
+      simple_container_port: 80
+      simple_container_domain: whoami.cloudyhome.org
 
   post_tasks:
     # Host-wide timer that runs `podman auto-update` daily (00:00 + up to

@@ -3,55 +3,54 @@ argument_specs:
   main:
     short_description: Deploy a single-image web app behind the reverse proxy.
     options:
-      name:
+      simple_container_name:
         type: str
         required: true
         description: >-
           Container name; also the Quadlet basename and the network DNS name
           the reverse proxy resolves.
-      image:
+      simple_container_image:
         type: str
         required: true
         description: Full image reference, e.g. docker.io/org/app:latest.
-      domain:
+      simple_container_domain:
         type: str
         required: false
         description: >-
           Public hostname. When set, a Caddy route (domain -> name:port) is
           written to the imported conf.d directory.
-      app_port:
+      simple_container_port:
         type: int
         required: false
-        description: >-
-          Internal upstream port for the Caddy route (default
-          simple_container_app_port). Deliberately not named `port`: a role
-          param called `port` is read by Ansible as the SSH connection port.
-      description:
+        default: 8080
+        description: Internal upstream port for the Caddy route.
+      simple_container_description:
         type: str
         required: false
         description: Unit description (default "<name> container").
-      network:
+      simple_container_network:
         type: str
         required: false
-        description: Podman network to join (default simple_container_network).
-      env:
+        default: web.network
+        description: Podman network to join.
+      simple_container_env:
         type: dict
         required: false
         default: {}
         description: Environment variables rendered as Environment= lines.
-      volumes:
+      simple_container_volumes:
         type: list
         elements: str
         required: false
         default: []
         description: Raw Quadlet Volume= values (e.g. "name.volume:/data" or host:container).
-      publish_ports:
+      simple_container_publish_ports:
         type: list
         elements: str
         required: false
         default: []
         description: Raw Quadlet PublishPort= values for apps that need a host port.
-      extra_options:
+      simple_container_extra_options:
         type: list
         elements: str
         required: false

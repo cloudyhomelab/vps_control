@@ -2,9 +2,14 @@
 # Destination on the target host (matches the `application` role).
 simple_container_system_dir: /etc/containers/systemd   # Quadlet generator dir
 
-# Defaults for the "internal web app behind the reverse proxy" pattern.
+# Defaults for the "internal web app behind the reverse proxy" pattern. These
+# double as the optional parameters: override them at the role call site.
 simple_container_network: web.network       # shared network (see apps/shared)
-simple_container_app_port: 8080             # internal upstream port for the Caddy route
+simple_container_port: 8080                 # internal upstream port for the Caddy route
+simple_container_env: {}                    # rendered as Environment= lines
+simple_container_volumes: []                # raw Volume= values
+simple_container_publish_ports: []          # raw PublishPort= values
+simple_container_extra_options: []          # extra raw [Container] lines
 
 # Caddy auto-routing: per-app snippets land here and are imported by the
 # Caddyfile (`import /etc/caddy/conf.d/*.caddy`). The reverse_proxy app mounts
@@ -18,11 +23,11 @@ simple_container_group: root
 simple_container_file_mode: "0644"
 simple_container_dir_mode: "0755"
 
-# --- Per-invocation parameters (passed as role params, see README) -------
-# name:   REQUIRED — container name; also the quadlet basename and network DNS name.
-# image:  REQUIRED — full image ref, e.g. docker.io/org/app:latest
-# domain:   optional — public hostname; when set, a Caddy route domain -> name:app_port.
-# app_port: optional — internal upstream port (default simple_container_app_port).
-#           NB: NOT named `port` — a role param called `port` hijacks the SSH
-#           connection port (Ansible reads it as the remote port).
-# description / network / env / volumes / publish_ports / extra_options: optional.
+# --- Per-invocation parameters (see README) ------------------------------
+# All parameters are role-prefixed (var-naming[no-role-prefix]); the prefix
+# also keeps them clear of Ansible's reserved role-entry key `name` and the
+# magic connection var `port`, both of which silently break a bare param.
+# simple_container_name:        REQUIRED — container name / quadlet basename / DNS name.
+# simple_container_image:       REQUIRED — full image ref, e.g. docker.io/org/app:latest.
+# simple_container_domain:      optional — public hostname; when set, a Caddy route is added.
+# simple_container_description: optional — unit description (default "<name> container").
