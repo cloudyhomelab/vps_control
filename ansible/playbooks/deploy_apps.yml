@@ -28,6 +28,11 @@
       simple_container_port: 8080
       simple_container_domain: nasplan.cloudyhome.org
 
+    # Decommission the old whoami demo. Remove this call after one successful deploy.
+    - role: simple_container
+      simple_container_state: absent
+      simple_container_name: whoami
+
   post_tasks:
     # Graceful, zero-downtime reload (via the unit's ExecReload) so Caddy picks
     # up any added/changed route snippets and re-resolves recreated upstreams.
