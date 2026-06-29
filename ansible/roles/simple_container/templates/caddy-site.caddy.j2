@@ -4,5 +4,5 @@
 			disable_http_challenge
 		}
 	}
-	reverse_proxy {{ name }}:{{ port | default(simple_container_port) }}
+	reverse_proxy {{ name }}:{{ app_port | default(simple_container_app_port) }}
 }

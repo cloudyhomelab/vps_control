@@ -3,8 +3,8 @@
 simple_container_system_dir: /etc/containers/systemd   # Quadlet generator dir
 
 # Defaults for the "internal web app behind the reverse proxy" pattern.
-simple_container_network: web.network   # shared network (see apps/shared)
-simple_container_port: 8080             # internal upstream port for the Caddy route
+simple_container_network: web.network       # shared network (see apps/shared)
+simple_container_app_port: 8080             # internal upstream port for the Caddy route
 
 # Caddy auto-routing: per-app snippets land here and are imported by the
 # Caddyfile (`import /etc/caddy/conf.d/*.caddy`). The reverse_proxy app mounts
@@ -21,6 +21,8 @@ simple_container_dir_mode: "0755"
 # --- Per-invocation parameters (passed as role params, see README) -------
 # name:   REQUIRED — container name; also the quadlet basename and network DNS name.
 # image:  REQUIRED — full image ref, e.g. docker.io/org/app:latest
-# domain: optional — public hostname; when set, a Caddy route domain -> name:port.
-# port:   optional — internal upstream port (default simple_container_port).
+# domain:   optional — public hostname; when set, a Caddy route domain -> name:app_port.
+# app_port: optional — internal upstream port (default simple_container_app_port).
+#           NB: NOT named `port` — a role param called `port` hijacks the SSH
+#           connection port (Ansible reads it as the remote port).
 # description / network / env / volumes / publish_ports / extra_options: optional.

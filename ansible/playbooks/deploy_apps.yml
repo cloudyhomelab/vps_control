@@ -25,7 +25,7 @@
     - role: simple_container
       name: whoami
       image: docker.io/traefik/whoami:latest
-      port: 80
+      app_port: 80
       domain: whoami.cloudyhome.org
 
   post_tasks:

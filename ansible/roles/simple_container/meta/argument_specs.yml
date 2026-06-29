@@ -19,10 +19,13 @@ argument_specs:
         description: >-
           Public hostname. When set, a Caddy route (domain -> name:port) is
           written to the imported conf.d directory.
-      port:
+      app_port:
         type: int
         required: false
-        description: Internal upstream port for the Caddy route (default simple_container_port).
+        description: >-
+          Internal upstream port for the Caddy route (default
+          simple_container_app_port). Deliberately not named `port`: a role
+          param called `port` is read by Ansible as the SSH connection port.
       description:
         type: str
         required: false

@@ -21,7 +21,7 @@ arbitrary config tree — use the [`application`](../application/README.md) role
       name: whoami
       image: docker.io/traefik/whoami:latest
       domain: whoami.cloudyhome.org   # omit for an internal-only app
-      port: 80                        # internal upstream port, default 8080
+      app_port: 80                    # internal upstream port, default 8080
 ```
 
 That single block is equivalent to writing a full `whoami.container` Quadlet
@@ -44,7 +44,7 @@ That single block is equivalent to writing a full `whoami.container` Quadlet
 | `name`          | yes      | Container name; Quadlet basename and network DNS name.         |
 | `image`         | yes      | Full image reference, e.g. `docker.io/org/app:latest`.         |
 | `domain`        | no       | Public hostname; when set, registers a Caddy route.            |
-| `port`          | no       | Internal upstream port for the route (default `8080`).         |
+| `app_port`      | no       | Internal upstream port for the route (default `8080`).         |
 | `description`   | no       | Unit description (default `"<name> container"`).               |
 | `network`       | no       | Podman network to join (default `web.network`).                |
 | `env`           | no       | Dict rendered as `Environment=` lines.                         |
@@ -52,9 +52,10 @@ That single block is equivalent to writing a full `whoami.container` Quadlet
 | `publish_ports` | no       | List of raw `PublishPort=` values (apps that need a host port).|
 | `extra_options` | no       | Extra raw lines appended to the `[Container]` section.         |
 
-> `port` is the **internal** upstream port used only for the Caddy route — it is
-> not published to the host. Use `publish_ports` for apps that must bind a host
-> port directly.
+> `app_port` is the **internal** upstream port used only for the Caddy route — it
+> is not published to the host. Use `publish_ports` for apps that must bind a host
+> port directly. (It is deliberately not named `port`: Ansible reads a role param
+> called `port` as the SSH connection port, which breaks the deploy.)
 
 ## Tunables (defaults)
 
@@ -62,7 +63,7 @@ That single block is equivalent to writing a full `whoami.container` Quadlet
 | ------------------------------ | ------------------------------------ | -------------------------------- |
 | `simple_container_system_dir`  | `/etc/containers/systemd`            | Quadlet install dir on the host. |
 | `simple_container_network`     | `web.network`                        | Default network to join.         |
-| `simple_container_port`        | `8080`                               | Default internal upstream port.  |
+| `simple_container_app_port`    | `8080`                               | Default internal upstream port.  |
 | `simple_container_caddy_confd` | `/var/app/reverse_proxy/config/conf.d` | Where route snippets are written.|
 | `simple_container_caddy_unit`  | `caddy.service`                      | Unit reloaded after a route change.|
 

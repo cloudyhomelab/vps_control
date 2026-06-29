@@ -3,8 +3,8 @@
 # Role params (see README):
 #   name   REQUIRED — container name / quadlet basename / network DNS name
 #   image  REQUIRED — full image reference
-#   domain optional — public hostname; when set, a Caddy route is registered
-#   port   optional — internal upstream port for the route (default 8080)
+#   domain   optional — public hostname; when set, a Caddy route is registered
+#   app_port optional — internal upstream port for the route (default 8080)
 
 - name: Validate role input
   ansible.builtin.assert:
@@ -25,7 +25,7 @@
     owner: "{{ simple_container_owner }}"
     group: "{{ simple_container_group }}"
     mode: "{{ simple_container_file_mode }}"
-  notify: Reload systemd
+  notify: Reload systemd (simple_container)
 
 - name: "Ensure Caddy conf.d directory exists for route of {{ name }}"
   ansible.builtin.file:
@@ -44,7 +44,7 @@
     group: "{{ simple_container_group }}"
     mode: "{{ simple_container_file_mode }}"
   when: domain is defined and (domain | string | length > 0)
-  notify: Reload caddy
+  notify: Reload caddy (simple_container)
 
 # Regenerate the Quadlet-derived service (and reload Caddy) before we touch unit
 # state. Handlers notified above run here, not at end of play.
