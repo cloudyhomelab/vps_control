@@ -1,4 +1,8 @@
 ---
+# Lifecycle: 'present' deploys the container + route; 'absent' stops the service
+# and removes its Quadlet and Caddy route (then delete the role call). See README.
+simple_container_state: present
+
 # Destination on the target host (matches the `application` role).
 simple_container_system_dir: /etc/containers/systemd   # Quadlet generator dir
 

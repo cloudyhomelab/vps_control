@@ -22,6 +22,7 @@
 
     # Deployed after reverse_proxy so caddy.service exists when its route is registered.
     - role: simple_container
+      simple_container_state: present
       simple_container_name: nasplan
       simple_container_image: docker.io/binarycodes/make-my-nas:latest
       simple_container_port: 8080

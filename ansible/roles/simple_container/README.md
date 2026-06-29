@@ -47,8 +47,9 @@ keeps them clear of Ansible footguns: a bare `name` is swallowed as the reserved
 
 | Param                            | Required | Purpose                                                        |
 | -------------------------------- | -------- | -------------------------------------------------------------- |
+| `simple_container_state`         | no       | `present` (default) deploys; `absent` decommissions.           |
 | `simple_container_name`          | yes      | Container name; Quadlet basename and network DNS name.         |
-| `simple_container_image`         | yes      | Full image reference, e.g. `docker.io/org/app:latest`.         |
+| `simple_container_image`         | when present | Full image reference, e.g. `docker.io/org/app:latest`.      |
 | `simple_container_domain`        | no       | Public hostname; when set, registers a Caddy route.            |
 | `simple_container_port`          | no       | Internal upstream port for the route (default `8080`).         |
 | `simple_container_description`   | no       | Unit description (default `"<name> container"`).               |
@@ -61,6 +62,25 @@ keeps them clear of Ansible footguns: a bare `name` is swallowed as the reserved
 > `simple_container_port` is the **internal** upstream port used only for the
 > Caddy route — it is not published to the host. Use
 > `simple_container_publish_ports` for apps that must bind a host port directly.
+
+## Decommissioning an app
+
+The playbook converges declared state but does not garbage-collect apps you
+simply delete from it — a removed role call just stops being managed, leaving its
+container, Quadlet, and route running on the host. To remove an app cleanly,
+**flip it to `absent`** rather than deleting the call:
+
+```yaml
+- role: simple_container
+  simple_container_state: absent
+  simple_container_name: whoami
+```
+
+On the next deploy the role stops the service (Quadlet removes the container),
+deletes the `<name>.container` Quadlet and the `<name>.caddy` route, and
+daemon-reloads; the playbook's post-task `caddy reload` then drops the route.
+Once it has run successfully you can delete the role call entirely. (Container
+images are left in place — remove them with `podman image prune` if desired.)
 
 ## Tunables (defaults)
 
