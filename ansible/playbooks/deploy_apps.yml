@@ -34,9 +34,9 @@
       simple_container_name: whoami
 
   post_tasks:
-    # Graceful, zero-downtime reload (via the unit's ExecReload) so Caddy picks
-    # up any added/changed route snippets and re-resolves recreated upstreams.
-    # Certs are reused from the caddy-data volume — no ACME re-issuance.
+    # Per-app roles write route snippets but Caddy only applies them on reload,
+    # so reload once centrally after all apps are converged. Reload, not restart,
+    # to keep existing connections up.
     - name: Reload Caddy to apply route changes
       ansible.builtin.systemd:
         name: caddy.service

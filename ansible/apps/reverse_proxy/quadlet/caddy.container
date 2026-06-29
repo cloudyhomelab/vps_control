@@ -21,10 +21,10 @@ Volume=caddy-config.volume:/config
 
 [Service]
 Restart=always
-# Graceful, zero-downtime config reload via Caddy's admin API. `systemctl reload
-# caddy` (and the deploy playbook) trigger this; certs are reused from /data, so
-# no ACME re-issuance. Quadlet names the container systemd-<unit> by default
-# (= systemd-caddy); keep this in sync if a ContainerName= is ever set above.
+# A Quadlet container unit has no reload action by default, so define one: routes
+# change on every app add/remove, and a full restart would drop live connections.
+# Caddy swaps config in place via its admin API, which is only reachable from
+# inside the container — hence podman exec into the default systemd-<unit> name.
 ExecReload=/usr/bin/podman exec systemd-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 
 [Install]
