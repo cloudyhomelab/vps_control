@@ -5,9 +5,10 @@
 #   simple -> render a single-container Quadlet from inline params (image, env,
 #             volumes, ...) with no source directory. See README.
 
-# Lifecycle: 'present' deploys the app and starts its units; 'absent' stops those
-# units and removes the installed Quadlet files, systemd units, and Caddy route
-# (then delete the role call). Config/data is left in place. See README.
+# Lifecycle: 'present' deploys the app and starts its units, dropping any file a
+# previous deploy installed and this one does not; 'absent' stops those units and
+# removes everything the app owns on the host, config and data included (then delete
+# the role call). Destructive — back the app up first. See README.
 application_state: present
 
 # Source of 'source'-kind app definitions on the Ansible controller.
@@ -22,22 +23,28 @@ application_system_dir: /etc/containers/systemd   # Quadlet files (read by the g
 application_unit_dir: /etc/systemd/system         # plain systemd units
 application_config_root: /var/app                 # config lands in {{ root }}/{app}/config
 
-# Where a 'source' app records the host paths it installed. Both a later deploy
-# (to drop files it no longer installs) and decommission read this manifest
-# instead of re-deriving from the controller's apps/<name>/ tree, which by then
-# may name different files or be gone. Root-owned; every recorded path is
-# allowlisted to the install dirs above before anything is removed.
-application_manifest_dir: /var/lib/application
-application_manifest_file: "{{ application_manifest_dir }}/{{ application_name }}.manifest"
+# Everything this app owns on the host below application_config_root: its deployed
+# config tree, plus any data a Quadlet bind-mounts under the same directory. Removed
+# wholesale on absent, so back the app up before decommissioning it.
+application_app_state_dir: "{{ application_config_root }}/{{ application_name }}"
 
-# What a 'source' deploy installs: the controller-side files, and the host paths
-# they land on. Derived once here so the copy loops, the recorded manifest, and
-# the stale-file pruning can never disagree about the set.
+# Where a 'source' app records the host paths it installed — Quadlet files, systemd
+# units and config tree alike. Both a later deploy (to drop files it no longer
+# installs) and decommission read this manifest instead of re-deriving from the
+# controller's apps/<name>/ tree, which by then may name different files or be gone.
+#
+# It lives inside the app's own state dir so the two share fate: the absent path drops
+# that whole tree, which takes the manifest with it, and a hand-removed or restored
+# /var/app/<app> cannot leave a stale record behind. Root-owned; every recorded path is
+# allowlisted before anything is removed.
+application_manifest_file: "{{ application_app_state_dir }}/.install-manifest"
+
+# The controller-side sources a 'source' deploy installs from. quadlet/ and unit/ are
+# flat — installed by basename — while config/ is a tree whose layout is preserved, so
+# present.yml discovers it with `find` rather than a one-level fileglob.
 application_source_quadlet_files: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ application_name ~ '/quadlet/*') }}"
 application_source_unit_files: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ application_name ~ '/unit/*') }}"
-application_installed_paths: >-
-  {{ ([application_system_dir] | product(application_source_quadlet_files | map('basename') | list) | map('join', '/') | list)
-     + ([application_unit_dir] | product(application_source_unit_files | map('basename') | list) | map('join', '/') | list) }}
+application_source_config_dir: "{{ application_apps_dir }}/{{ application_name }}/config"
 
 # Ownership / permissions applied to everything this role installs.
 application_owner: root

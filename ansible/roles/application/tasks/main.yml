@@ -10,22 +10,31 @@
     that:
       - application_name is defined
       - application_name | string | length > 0
+      # The name composes every install path and, on absent, a recursive delete of
+      # {{ application_config_root }}/<name>, so it must be one plain path segment:
+      # a slash or a leading dot would let that delete escape the app's own directory.
+      - application_name is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
       - application_kind is defined
       - application_kind in ['source', 'simple']
       # 'simple' renders from an image, so present requires one (absent does not).
       - application_kind != 'simple' or application_state == 'absent' or (application_image is defined and (application_image | string | length > 0))
     fail_msg: >-
-      The 'application' role requires 'application_name' and 'application_kind'
-      (source|simple); a 'simple' app being deployed (state=present) also requires
-      'application_image'.
+      The 'application' role requires 'application_name' (letters, digits, dot, dash
+      or underscore, not starting with a dot) and 'application_kind' (source|simple);
+      a 'simple' app being deployed (state=present) also requires 'application_image'.
     quiet: true
 
-# set_fact persists for the rest of the play, and this role runs once per app, so
-# the recorded-paths fact is cleared here — an app with no manifest of its own must
-# never inherit the install paths of an earlier app in the same run.
-- name: "Reset recorded install paths for app {{ application_name }}"
+# Facts and registers both persist for the rest of the play, and this role runs once
+# per app, so everything path-shaped is cleared here — an app must never inherit
+# another app's paths from an earlier invocation in the same run, least of all into a
+# task that deletes them. application_config_found is included because its `find` is
+# skipped for apps with no config tree, which would otherwise leave the previous app's
+# file list standing.
+- name: "Reset install path facts for app {{ application_name }}"
   ansible.builtin.set_fact:
     application_manifest_paths: []
+    application_installed_paths: []
+    application_config_found: {}
 
 - name: "Deploy app {{ application_name }}"
   ansible.builtin.include_tasks: present.yml
