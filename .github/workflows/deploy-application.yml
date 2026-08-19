@@ -13,7 +13,13 @@ permissions:
   contents: read
 
 jobs:
+  # Gate the deploy: this workflow runs on push to main, so without a blocking check
+  # a broken playbook would converge on the VPS before anyone read it.
+  lint:
+    uses: ./.github/workflows/ansible-lint.yml
+
   deploy:
+    needs: lint
     uses: ./.github/workflows/ansible-run.yml
     with:
       playbook: playbooks/deploy_apps.yml

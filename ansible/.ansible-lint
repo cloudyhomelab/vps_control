@@ -1,4 +1,8 @@
 ---
 # No rules are skipped. Every role variable is role-prefixed
 # (var-naming[no-role-prefix]); see each role's argument_specs.yml.
+#
+# Lives in ansible/ rather than the repo root because that is the cwd the CI lint job
+# uses — which also keeps .github/ outside the scanned tree, so workflow YAML is never
+# linted as Ansible content.
 profile: production

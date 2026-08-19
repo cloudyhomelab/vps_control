@@ -1,0 +1,47 @@
+name: Lint Ansible
+
+# Callable, so the deploy can depend on it, and PR-triggered, so changes are checked
+# before they reach main — where a push deploys itself.
+on:
+  workflow_call:
+  pull_request:
+    paths:
+      - 'ansible/**'
+      - '.github/workflows/ansible-lint.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint and syntax-check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # ansible-lint depends on ansible-core, so this also provides the
+      # ansible-playbook used by the syntax check below.
+      - name: Install ansible-lint
+        run: |
+          pip install --upgrade pip
+          pip install ansible-lint
+
+      # Both checks run from ansible/ so ansible.cfg applies: its roles_path=./roles is
+      # what makes the application role resolvable.
+      #
+      # Kept alongside ansible-lint (which runs its own syntax check) because the two
+      # see different things: this assembles the real play graph but never parses
+      # include_tasks targets, so tasks/read-manifest.yml is invisible to it.
+      - name: Syntax-check playbooks
+        working-directory: ansible
+        run: |
+          # -i only silences the empty-inventory warning; a syntax check never connects.
+          ansible-playbook -i localhost, --syntax-check playbooks/deploy_apps.yml playbooks/update_packages.yml
+
+      # Lints every YAML file in the tree, dynamically included task files included.
+      - name: Lint
+        working-directory: ansible
+        run: ansible-lint
