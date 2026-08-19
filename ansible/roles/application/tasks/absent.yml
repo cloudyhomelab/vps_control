@@ -50,7 +50,7 @@
 # re-checked here rather than trusted from main.yml's input validation. A name with a
 # slash or a leading dot would make this reach application_config_root itself, taking
 # every other app's config and data with it.
-- name: "Verify the state dir of app {{ application_name }} is one named child of {{ application_config_root }}"
+- name: "Verify the state dir to remove belongs to app {{ application_name }}"
   ansible.builtin.assert:
     that:
       - application_name is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
