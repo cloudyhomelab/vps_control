@@ -68,12 +68,22 @@ argument_specs:
         required: false
         default: []
         description: simple kind only. Raw Quadlet PublishPort= values for apps that need a host port.
-      application_extra_options:
+      application_container_options:
         type: list
         elements: str
         required: false
         default: []
-        description: simple kind only. Extra raw lines appended to the [Container] section.
+        description: >-
+          simple kind only. Raw lines appended to the [Container] section, for Quadlet
+          keys this role has no parameter of its own (e.g. HealthCmd=, Notify=).
+      application_service_options:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: >-
+          simple kind only. Raw lines appended to the [Service] section, for unit keys
+          this role has no parameter of its own (e.g. TimeoutStartSec=).
       application_domain:
         type: str
         required: false

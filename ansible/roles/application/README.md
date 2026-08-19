@@ -83,7 +83,8 @@ decommission has run on the host, delete the role call.
 | `application_env`           | no                   | Env vars rendered as `Environment=` lines.         |
 | `application_volumes`       | no                   | Raw `Volume=` values.                              |
 | `application_publish_ports` | no                   | Raw `PublishPort=` values.                         |
-| `application_extra_options` | no                   | Extra raw lines for the `[Container]` section.     |
+| `application_container_options` | no               | Raw lines for the `[Container]` section.           |
+| `application_service_options` | no                 | Raw lines for the `[Service]` section.            |
 
 ## Tunables (defaults)
 

@@ -17,12 +17,15 @@ Volume={{ vol }}
 {% for pub in application_publish_ports %}
 PublishPort={{ pub }}
 {% endfor %}
-{% for line in application_extra_options %}
+{% for line in application_container_options %}
 {{ line }}
 {% endfor %}
 
 [Service]
 Restart=always
+{% for line in application_service_options %}
+{{ line }}
+{% endfor %}
 
 [Install]
 WantedBy=multi-user.target default.target
