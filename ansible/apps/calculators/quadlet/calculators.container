@@ -7,12 +7,25 @@ Wants=network-online.target
 Image=docker.io/binarycodes/calculators:latest
 ContainerName=calculators
 AutoUpdate=registry
+# Liveness probe guarding that auto-update: Notify=healthy withholds "started"
+# until it first passes, so a bad :latest image is a failed start that
+# `podman auto-update --rollback` reverts, rather than a container that is up and
+# serving nothing. 127.0.0.1 to sidestep localhost resolving to ::1.
+HealthCmd=wget -qO /dev/null http://127.0.0.1:8080/ || exit 1
+HealthInterval=15s
+HealthRetries=3
+HealthStartPeriod=60s
+Notify=healthy
 # Internal-only: reachable as calculators:8080 over the shared network; the
 # reverse proxy is the sole host-facing ingress.
 Network=web.network
 
 [Service]
 Restart=always
+# Notify=healthy turns the start timeout into a deadline for the first passing
+# probe, and systemd's 90s default is tight for a JVM cold start — a slow boot
+# would read as a failed start and roll back a perfectly good image.
+TimeoutStartSec=180
 
 [Install]
 WantedBy=multi-user.target default.target

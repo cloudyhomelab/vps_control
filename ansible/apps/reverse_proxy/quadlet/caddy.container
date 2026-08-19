@@ -6,6 +6,20 @@ Wants=network-online.target
 [Container]
 Image=docker.io/library/caddy:latest
 AutoUpdate=registry
+# Liveness probe guarding that auto-update: the admin API answers only once Caddy
+# has parsed and loaded the Caddyfile, so an image that boots but cannot serve is
+# visible as unhealthy instead of silently proxying nothing. Reachable only from
+# inside the container, same as ExecReload below. Addressed as 127.0.0.1, not
+# localhost: musl resolves that to ::1 first, where nothing is listening.
+HealthCmd=wget -qO /dev/null http://127.0.0.1:2019/config/ || exit 1
+HealthInterval=30s
+HealthRetries=3
+HealthStartPeriod=10s
+# What turns the probe above into a rollback trigger: systemd withholds "started"
+# until the first probe passes, so `podman auto-update --rollback` sees a bad image
+# as a failed start and reverts it. Without this the unit counts as up the moment
+# the container launches, whatever it then serves. Needs podman >= 4.7 (host: 5.4.2).
+Notify=healthy
 # Only 443 is published — TLS-ALPN-01 handles ACME over HTTPS, so port 80
 # is not needed (TCP for HTTPS, UDP for HTTP/3).
 PublishPort=443:443

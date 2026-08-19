@@ -36,6 +36,16 @@
       application_image: docker.io/binarycodes/make-my-nas:latest
       application_port: 8080
       application_domain: nasplan.cloudyhome.org
+      # Same rollback guard the source apps carry, passed as raw [Container] lines:
+      # Notify=healthy withholds "started" until the probe first passes, so a bad
+      # :latest image is a failed start that podman auto-update reverts. The port
+      # matches application_port above; 127.0.0.1 because localhost resolves to ::1.
+      application_extra_options:
+        - HealthCmd=wget -qO /dev/null http://127.0.0.1:8080/ || exit 1
+        - HealthInterval=15s
+        - HealthRetries=3
+        - HealthStartPeriod=60s
+        - Notify=healthy
 
     - role: application
       application_state: absent
