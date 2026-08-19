@@ -70,7 +70,12 @@
     group: "{{ application_group }}"
     mode: "{{ application_file_mode }}"
     directory_mode: "{{ application_dir_mode }}"
-  when: application_config_dir.stat.exists and application_config_dir.stat.isdir
+  when:
+    # Shipping files from the repo is what makes an app 'source'. A 'simple' app has no
+    # manifest, so config copied for one would never be pruned when it changed.
+    - application_kind == 'source'
+    - application_config_dir.stat.exists
+    - application_config_dir.stat.isdir
 
 # Every host path this deploy just installed: the two flat install dirs by basename,
 # plus the config tree with its relative layout preserved. Derived in one place so the
