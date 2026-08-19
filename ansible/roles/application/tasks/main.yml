@@ -20,6 +20,13 @@
       'application_image'.
     quiet: true
 
+# set_fact persists for the rest of the play, and this role runs once per app, so
+# the recorded-paths fact is cleared here — an app with no manifest of its own must
+# never inherit the install paths of an earlier app in the same run.
+- name: "Reset recorded install paths for app {{ application_name }}"
+  ansible.builtin.set_fact:
+    application_manifest_paths: []
+
 - name: "Deploy app {{ application_name }}"
   ansible.builtin.include_tasks: present.yml
   when: application_state == 'present'

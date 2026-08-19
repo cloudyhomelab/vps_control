@@ -22,6 +22,23 @@ application_system_dir: /etc/containers/systemd   # Quadlet files (read by the g
 application_unit_dir: /etc/systemd/system         # plain systemd units
 application_config_root: /var/app                 # config lands in {{ root }}/{app}/config
 
+# Where a 'source' app records the host paths it installed. Both a later deploy
+# (to drop files it no longer installs) and decommission read this manifest
+# instead of re-deriving from the controller's apps/<name>/ tree, which by then
+# may name different files or be gone. Root-owned; every recorded path is
+# allowlisted to the install dirs above before anything is removed.
+application_manifest_dir: /var/lib/application
+application_manifest_file: "{{ application_manifest_dir }}/{{ application_name }}.manifest"
+
+# What a 'source' deploy installs: the controller-side files, and the host paths
+# they land on. Derived once here so the copy loops, the recorded manifest, and
+# the stale-file pruning can never disagree about the set.
+application_source_quadlet_files: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ application_name ~ '/quadlet/*') }}"
+application_source_unit_files: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ application_name ~ '/unit/*') }}"
+application_installed_paths: >-
+  {{ ([application_system_dir] | product(application_source_quadlet_files | map('basename') | list) | map('join', '/') | list)
+     + ([application_unit_dir] | product(application_source_unit_files | map('basename') | list) | map('join', '/') | list) }}
+
 # Ownership / permissions applied to everything this role installs.
 application_owner: root
 application_group: root

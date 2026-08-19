@@ -17,9 +17,10 @@ argument_specs:
         default: present
         choices: [present, absent]
         description: >-
-          present deploys the app and starts its units; absent stops those units
-          and removes the installed Quadlet files, systemd units, and Caddy route
-          (then delete the role call). Config/data is left in place.
+          present deploys the app and starts its units, removing files a previous
+          deploy installed and this one does not; absent stops those units and
+          removes the installed Quadlet files, systemd units, and Caddy route (then
+          delete the role call). Config/data is left in place.
       application_name:
         type: str
         required: true

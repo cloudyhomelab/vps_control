@@ -1,0 +1,7 @@
+{# Absolute host paths this deploy installed for a 'source' app. Read back verbatim
+   by read-manifest.yml, which validates every line against the role's install dirs
+   before anything acts on it — so keep each entry a plain file directly inside
+   application_system_dir / application_unit_dir. #}
+{% for path in application_installed_paths %}
+{{ path }}
+{% endfor %}

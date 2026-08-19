@@ -3,8 +3,8 @@
 # systemd units, and Caddy route from the host. Each kind owns a different on-host
 # artifact, so removal is gated on application_kind:
 #   simple -> the rendered <name>.container.
-#   source -> the files installed from <name>/{quadlet,unit}/ (matched by source
-#             basename, so the same globs present.yml installs from drive removal).
+#   source -> exactly the files recorded in the host install manifest by the last
+#             deploy, so teardown needs no controller-side apps/<name>/ tree.
 # Config/data under {{ application_config_root }}/{{ application_name }} is
 # deliberately left alone: it may hold persistent state, and reverse_proxy's tree
 # holds other apps' routes.
@@ -30,21 +30,23 @@
   when: application_kind == 'simple'
   notify: Reload systemd
 
-- name: "Remove Quadlet files for app {{ application_name }}"
+- name: "Read recorded install manifest for app {{ application_name }}"
+  ansible.builtin.include_tasks: read-manifest.yml
+  when: application_kind == 'source'
+
+- name: "Remove installed files for app {{ application_name }}"
   ansible.builtin.file:
-    path: "{{ application_system_dir }}/{{ item | basename }}"
+    path: "{{ item }}"
     state: absent
-  loop: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ application_name ~ '/quadlet/*') }}"
+  loop: "{{ application_manifest_paths }}"
   when: application_kind == 'source'
   notify: Reload systemd
 
-- name: "Remove systemd units for app {{ application_name }}"
+- name: "Remove install manifest for app {{ application_name }}"
   ansible.builtin.file:
-    path: "{{ application_unit_dir }}/{{ item | basename }}"
+    path: "{{ application_manifest_file }}"
     state: absent
-  loop: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ application_name ~ '/unit/*') }}"
   when: application_kind == 'source'
-  notify: Reload systemd
 
 # Caddy route snippet, if the app registered one. The route stops resolving when
 # the deploy playbook reloads Caddy (post-task), as on the present path.

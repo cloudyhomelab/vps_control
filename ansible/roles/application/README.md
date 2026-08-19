@@ -39,6 +39,9 @@ needed. Just give it an image (and usually a domain). The container is named
 1. **`simple`**: renders `<name>.container` to `/etc/containers/systemd/`.
    **`source`**: copies `<app>/quadlet/*` there and `<app>/unit/*` to
    `/etc/systemd/system/`, then copies `<app>/config/` to `/var/app/<app>/config/`.
+   The installed host paths are recorded in an [install manifest](#install-manifest);
+   anything the previous deploy recorded and this one no longer installs (a renamed
+   or deleted file) is removed from the host.
 2. When `application_domain` is set, writes a Caddy route snippet to the imported
    `conf.d/` directory (see [Caddy routing](#caddy-routing)).
 3. Runs `systemctl daemon-reload` (once, only if anything changed).
@@ -49,8 +52,8 @@ needed. Just give it an image (and usually a domain). The container is named
 1. Stops the managed units (a Quadlet service's `ExecStopPost` also removes its
    container).
 2. Removes the app's Quadlet from the host — the rendered `<name>.container`
-   (`simple`) or the installed `<app>/quadlet/*` and `<app>/unit/*` files,
-   matched by source basename (`source`) — and the `<name>.caddy` route snippet.
+   (`simple`) or exactly the paths in the app's [install manifest](#install-manifest)
+   (`source`) — and the `<name>.caddy` route snippet.
 3. Runs `systemctl daemon-reload`.
 
 Config/data under `/var/app/<app>` is **left in place** — it may hold persistent
@@ -90,7 +93,26 @@ decommission has run on the host, delete the role call.
 | `application_system_dir`  | `/etc/containers/systemd`    | Quadlet install dir on the host.         |
 | `application_unit_dir`    | `/etc/systemd/system`        | Plain-unit install dir on the host.      |
 | `application_config_root` | `/var/app`                   | Config root → `<root>/<app>/config`.     |
+| `application_manifest_dir` | `/var/lib/application`      | Install manifests, one per `source` app. |
 | `application_caddy_confd` | `/var/app/reverse_proxy/config/conf.d` | Dir for generated route snippets. |
+
+## Install manifest
+
+A `source` deploy records the absolute host paths it installed to
+`/var/lib/application/<app>.manifest`, one per line. Both a later deploy
+and a decommission work from that file rather than re-globbing
+`apps/<app>/{quadlet,unit}/`, which by then may name different files or be gone
+entirely — so a renamed or deleted Quadlet does not linger on the host as an
+orphaned unit, and a decommission needs no source tree at all.
+
+The manifest is host state acted on as root, so every recorded path is checked
+against `application_system_dir` / `application_unit_dir` before anything is
+removed; a manifest listing a path outside them fails the run without deleting
+anything.
+
+Only files are reconciled. A unit dropped from the app that is still running keeps
+running until it is stopped or the host reboots — remove it from
+`application_enable_units` and stop it once by hand.
 
 ## Caddy routing
 
