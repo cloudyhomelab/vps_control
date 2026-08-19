@@ -17,12 +17,28 @@ Volume={{ vol }}
 {% for pub in application_publish_ports %}
 PublishPort={{ pub }}
 {% endfor %}
-{% for line in application_extra_options %}
+{% for line in application_container_options %}
 {{ line }}
 {% endfor %}
+{% if application_health_cmd | length > 0 %}
+HealthCmd={{ application_health_cmd }}
+HealthInterval={{ application_health_interval }}
+HealthRetries={{ application_health_retries }}
+HealthStartPeriod={{ application_health_start_period }}
+# Withholds "started" until the first probe passes, so podman auto-update sees a bad
+# image as a failed start and reverts it.
+Notify=healthy
+{% endif %}
 
 [Service]
 Restart=always
+{% if application_health_cmd | length > 0 %}
+# Notify=healthy above makes this the deadline for the first passing probe.
+TimeoutStartSec={{ application_start_timeout }}
+{% endif %}
+{% for line in application_service_options %}
+{{ line }}
+{% endfor %}
 
 [Install]
 WantedBy=multi-user.target default.target

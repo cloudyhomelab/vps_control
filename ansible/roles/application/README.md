@@ -83,7 +83,9 @@ decommission has run on the host, delete the role call.
 | `application_env`           | no                   | Env vars rendered as `Environment=` lines.         |
 | `application_volumes`       | no                   | Raw `Volume=` values.                              |
 | `application_publish_ports` | no                   | Raw `PublishPort=` values.                         |
-| `application_extra_options` | no                   | Extra raw lines for the `[Container]` section.     |
+| `application_container_options` | no               | Raw lines for the `[Container]` section.           |
+| `application_service_options` | no                 | Raw lines for the `[Service]` section.            |
+| `application_health_cmd`    | no                   | Probe command; enables the health block (see below). |
 
 ## Tunables (defaults)
 
@@ -127,6 +129,36 @@ app (the container *is* `<name>`) and for `source` apps whose `ContainerName=`
 matches the app name. Override it when a `source` app's routable container is
 named differently. On `absent`, the role removes the `<name>.caddy` snippet it
 generated.
+
+## Healthchecks and auto-update rollback
+
+`podman auto-update` reverts an image only when the unit **fails to start**. Without a
+healthcheck a container that boots and then serves errors counts as started, so the bad
+image stays. `Notify=healthy` closes that gap: systemd withholds "started" until the
+first probe passes, which turns a broken image into a failed start that gets rolled back.
+
+For a `simple` app, set `application_health_cmd` and the role emits the whole block —
+`HealthCmd`, `HealthInterval`, `HealthRetries`, `HealthStartPeriod`, `Notify=healthy`,
+and a matching `TimeoutStartSec`. Only the command is per-app, because nothing else can
+be: an HTTP app wants a request, Postgres wants `pg_isready`. Everything around it is
+fleet policy in `defaults/main.yml` and rarely needs overriding.
+
+```yaml
+    - role: application
+      application_kind: simple
+      application_name: nasplan
+      application_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
+```
+
+Two things to know. The command runs **inside** the container, so the tool has to exist
+in the image — check with `podman exec <name> sh -lc 'command -v wget curl'` before
+relying on it, because a probe that can never pass makes the deploy itself fail. And
+address the app as `127.0.0.1`, not `localhost`, which resolves to `::1` on musl images
+where nothing is listening. Leave `application_health_cmd` empty for an app that cannot
+be probed; it then gets no health block and no rollback protection.
+
+`source` apps declare these keys in their own Quadlet files (see
+`apps/calculators/quadlet/calculators.container`), so this policy does not reach them.
 
 ## Unit names and boot persistence
 

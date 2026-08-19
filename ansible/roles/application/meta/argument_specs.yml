@@ -68,12 +68,55 @@ argument_specs:
         required: false
         default: []
         description: simple kind only. Raw Quadlet PublishPort= values for apps that need a host port.
-      application_extra_options:
+      application_container_options:
         type: list
         elements: str
         required: false
         default: []
-        description: simple kind only. Extra raw lines appended to the [Container] section.
+        description: >-
+          simple kind only. Raw lines appended to the [Container] section, for Quadlet
+          keys this role has no parameter of its own (e.g. HealthCmd=, Notify=).
+      application_service_options:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: >-
+          simple kind only. Raw lines appended to the [Service] section, for unit keys
+          this role has no parameter of its own.
+      application_health_cmd:
+        type: str
+        required: false
+        default: ''
+        description: >-
+          simple kind only. Healthcheck command run inside the container — an HTTP
+          request, pg_isready, whatever fits the app. Setting it emits the whole health
+          block plus Notify=healthy, so a bad image fails to start and podman
+          auto-update rolls it back. Empty means no healthcheck.
+      application_health_interval:
+        type: str
+        required: false
+        default: 15s
+        description: simple kind only. Time between probes once the container is up.
+      application_health_retries:
+        type: int
+        required: false
+        default: 3
+        description: simple kind only. Consecutive failures before the container is unhealthy.
+      application_health_start_period:
+        type: str
+        required: false
+        default: 60s
+        description: >-
+          simple kind only. Grace window after start during which a failing probe does
+          not count against the retries.
+      application_start_timeout:
+        type: int
+        required: false
+        default: 180
+        description: >-
+          simple kind only. TimeoutStartSec for the unit, applied when a health command
+          is set — Notify=healthy turns it into the deadline for the first passing probe.
       application_domain:
         type: str
         required: false
