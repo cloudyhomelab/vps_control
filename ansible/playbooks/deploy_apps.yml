@@ -4,6 +4,12 @@
   become: true
   gather_facts: true
 
+  vars:
+    # How often `podman auto-update` checks the registry for the AutoUpdate=registry
+    # containers. Every 2h is 3 manifest requests per image per 6h window, well
+    # inside Docker Hub's 100-per-6h ceiling for the anonymous pulls these use.
+    podman_auto_update_oncalendar: "*-*-* 0/2:00:00"
+
   roles:
     # Deploy the shared network first so it exists before any container that
     # joins it (Network=web.network) is started.
@@ -46,8 +52,37 @@
         state: reloaded
 
     # Host-wide timer that runs `podman auto-update` refreshing every container marked AutoUpdate=registry.
+    # A drop-in rather than a replacement unit, so upstream changes to the rest of
+    # the timer still apply. Not installable through the application role: that role
+    # copies flat files into its own two install dirs and its manifest allowlist
+    # refuses subdirectory paths, which is what a .timer.d/ drop-in is.
+    - name: Ensure the Podman auto-update timer drop-in directory exists
+      ansible.builtin.file:
+        path: /etc/systemd/system/podman-auto-update.timer.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    # The bare OnCalendar= is load-bearing: OnCalendar accumulates, so without
+    # clearing the vendor's daily value first this would add a second schedule
+    # rather than replace it. The delay spreads the pull across the window instead
+    # of firing on an exact clock boundary, where it could meet a deploy run.
+    - name: Set the Podman auto-update check interval
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/podman-auto-update.timer.d/override.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Timer]
+          OnCalendar=
+          OnCalendar={{ podman_auto_update_oncalendar }}
+          RandomizedDelaySec=1800
+
     - name: Enable the Podman auto-update timer
       ansible.builtin.systemd:
         name: podman-auto-update.timer
         enabled: true
         state: started
+        daemon_reload: true
