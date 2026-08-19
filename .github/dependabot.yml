@@ -1,0 +1,18 @@
+---
+# The workflows pin actions to a commit SHA with a "# vX.Y.Z" comment; Dependabot
+# updates both, which is the part that is tedious to do by hand. Actions are the
+# only ecosystem here — the Ansible content has no lockfile to track.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    # One PR for all actions rather than one per action: with a handful of pins,
+    # separate PRs are more review overhead than signal.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: chore
