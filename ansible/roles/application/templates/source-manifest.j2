@@ -1,7 +1,8 @@
-{# Absolute host paths this deploy installed for a 'source' app. Read back verbatim
-   by read-manifest.yml, which validates every line against the role's install dirs
-   before anything acts on it — so keep each entry a plain file directly inside
-   application_system_dir / application_unit_dir. #}
+{# Absolute host paths this deploy installed for a 'source' app: Quadlet files,
+   systemd units, and the config tree. Read back verbatim by read-manifest.yml, which
+   validates every line before anything acts on it — a flat file directly inside
+   application_system_dir / application_unit_dir, or any file under this app's own
+   config tree. #}
 {% for path in application_installed_paths %}
 {{ path }}
 {% endfor %}

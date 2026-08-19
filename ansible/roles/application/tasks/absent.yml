@@ -1,13 +1,17 @@
 ---
-# Decommission an app: stop its units, then remove its Quadlet files, plain
-# systemd units, and Caddy route from the host. Each kind owns a different on-host
-# artifact, so removal is gated on application_kind:
+# Decommission an app: stop its units, then remove everything it owns on the host —
+# Quadlet files, plain systemd units, its config/data directory, and its Caddy route.
+# This is destructive and not reversible; back the app up before setting state=absent.
+#
+# The install dirs are shared with every other app, so what gets removed there is
+# gated on application_kind:
 #   simple -> the rendered <name>.container.
 #   source -> exactly the files recorded in the host install manifest by the last
 #             deploy, so teardown needs no controller-side apps/<name>/ tree.
-# Config/data under {{ application_config_root }}/{{ application_name }} is
-# deliberately left alone: it may hold persistent state, and reverse_proxy's tree
-# holds other apps' routes.
+# {{ application_app_state_dir }} is this app's alone, so it goes wholesale for both
+# kinds. Podman named volumes and networks declared by an app's Quadlet files are NOT
+# removed — they outlive the units that created them, and Caddy's TLS certificates live
+# in one. Remove those by hand (`podman volume rm`) once you are sure.
 
 # Stop while the generated units still exist; stopping a Quadlet service also
 # removes its container (ExecStopPost). Tolerate a unit that was never deployed
@@ -42,13 +46,35 @@
   when: application_kind == 'source'
   notify: Reload systemd
 
+# The one task in this role that removes a directory tree, so the composed path is
+# re-checked here rather than trusted from main.yml's input validation. A name with a
+# slash or a leading dot would make this reach application_config_root itself, taking
+# every other app's config and data with it.
+- name: "Verify the state dir of app {{ application_name }} is one named child of {{ application_config_root }}"
+  ansible.builtin.assert:
+    that:
+      - application_name is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+      - application_app_state_dir == application_config_root ~ '/' ~ application_name
+      - application_app_state_dir != application_config_root
+    fail_msg: >-
+      Refusing to remove {{ application_app_state_dir }}: an app's state directory must
+      be exactly one named child of {{ application_config_root }}, and
+      '{{ application_name }}' does not compose one.
+    quiet: true
+
+- name: "Remove config and data of app {{ application_name }}"
+  ansible.builtin.file:
+    path: "{{ application_app_state_dir }}"
+    state: absent
+
 - name: "Remove install manifest for app {{ application_name }}"
   ansible.builtin.file:
     path: "{{ application_manifest_file }}"
     state: absent
   when: application_kind == 'source'
 
-# Caddy route snippet, if the app registered one. The route stops resolving when
+# Caddy route snippet, if the app registered one. It lives in reverse_proxy's config
+# tree, not this app's, so it needs removing explicitly. The route stops resolving when
 # the deploy playbook reloads Caddy (post-task), as on the present path.
 - name: "Remove Caddy route for {{ application_name }}"
   ansible.builtin.file:

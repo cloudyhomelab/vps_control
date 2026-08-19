@@ -38,10 +38,56 @@
   when: application_kind == 'source'
   notify: Reload systemd
 
-# Files the last deploy installed that this one does not: renamed, or dropped from
-# the app's source tree. Left behind they are still live host state — the Quadlet
-# generator keeps making services from them and their [Install] section still
-# starts at boot. Pruned after the install above, so the app is never unitless.
+- name: "Check for config directory of app {{ application_name }}"
+  ansible.builtin.stat:
+    path: "{{ application_source_config_dir }}"
+  delegate_to: localhost
+  become: false
+  register: application_config_dir
+
+# Recursive, because a config tree nests and fileglob sees only one level down. The
+# manifest has to list every file the copy below installs, or the next deploy prunes
+# something it should have kept.
+- name: "Find config files of app {{ application_name }}"
+  ansible.builtin.find:
+    paths: "{{ application_source_config_dir }}"
+    recurse: true
+    hidden: true
+    file_type: file
+  delegate_to: localhost
+  become: false
+  register: application_config_found
+  when:
+    - application_kind == 'source'
+    - application_config_dir.stat.exists
+    - application_config_dir.stat.isdir
+
+- name: "Deploy config tree for app {{ application_name }}"
+  ansible.builtin.copy:
+    src: "{{ application_source_config_dir }}/"
+    dest: "{{ application_app_state_dir }}/config/"
+    owner: "{{ application_owner }}"
+    group: "{{ application_group }}"
+    mode: "{{ application_file_mode }}"
+    directory_mode: "{{ application_dir_mode }}"
+  when: application_config_dir.stat.exists and application_config_dir.stat.isdir
+
+# Every host path this deploy just installed: the two flat install dirs by basename,
+# plus the config tree with its relative layout preserved. Derived in one place so the
+# prune below and the recorded manifest cannot disagree about the set.
+- name: "Collect installed paths for app {{ application_name }}"
+  ansible.builtin.set_fact:
+    application_installed_paths: >-
+      {{ ([application_system_dir] | product(application_source_quadlet_files | map('basename') | list) | map('join', '/') | list)
+         + ([application_unit_dir] | product(application_source_unit_files | map('basename') | list) | map('join', '/') | list)
+         + ([application_app_state_dir ~ '/config'] | product(application_config_found.files | default([])
+            | map(attribute='path') | map('relpath', application_source_config_dir) | list) | map('join', '/') | list) }}
+  when: application_kind == 'source'
+
+# Files the last deploy installed that this one does not: renamed, or dropped from the
+# app's source tree. Left behind they are still live host state — the Quadlet generator
+# keeps making services from stale unit files, and stale config keeps being mounted.
+# Pruned after the installs above, so the app is never left without its files.
 - name: "Remove files no longer installed by app {{ application_name }}"
   ansible.builtin.file:
     path: "{{ item }}"
@@ -69,23 +115,6 @@
     group: "{{ application_group }}"
     mode: "{{ application_file_mode }}"
   when: application_kind == 'source'
-
-- name: "Check for config directory of app {{ application_name }}"
-  ansible.builtin.stat:
-    path: "{{ application_apps_dir }}/{{ application_name }}/config"
-  delegate_to: localhost
-  become: false
-  register: application_config_dir
-
-- name: "Deploy config tree for app {{ application_name }}"
-  ansible.builtin.copy:
-    src: "{{ application_apps_dir }}/{{ application_name }}/config/"
-    dest: "{{ application_config_root }}/{{ application_name }}/config/"
-    owner: "{{ application_owner }}"
-    group: "{{ application_group }}"
-    mode: "{{ application_file_mode }}"
-    directory_mode: "{{ application_dir_mode }}"
-  when: application_config_dir.stat.exists and application_config_dir.stat.isdir
 
 # Caddy route: only written when the app opts in with application_domain. The
 # snippet is imported by the central Caddyfile, so no daemon-reload is needed and

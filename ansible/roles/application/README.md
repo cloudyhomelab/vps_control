@@ -39,9 +39,10 @@ needed. Just give it an image (and usually a domain). The container is named
 1. **`simple`**: renders `<name>.container` to `/etc/containers/systemd/`.
    **`source`**: copies `<app>/quadlet/*` there and `<app>/unit/*` to
    `/etc/systemd/system/`, then copies `<app>/config/` to `/var/app/<app>/config/`.
-   The installed host paths are recorded in an [install manifest](#install-manifest);
-   anything the previous deploy recorded and this one no longer installs (a renamed
-   or deleted file) is removed from the host.
+   All three sets of installed host paths are recorded in an
+   [install manifest](#install-manifest); anything the previous deploy recorded and
+   this one no longer installs (a renamed or deleted file, in `config/` as much as in
+   `quadlet/`) is removed from the host.
 2. When `application_domain` is set, writes a Caddy route snippet to the imported
    `conf.d/` directory (see [Caddy routing](#caddy-routing)).
 3. Runs `systemctl daemon-reload` (once, only if anything changed).
@@ -54,12 +55,22 @@ needed. Just give it an image (and usually a domain). The container is named
 2. Removes the app's Quadlet from the host — the rendered `<name>.container`
    (`simple`) or exactly the paths in the app's [install manifest](#install-manifest)
    (`source`) — and the `<name>.caddy` route snippet.
-3. Runs `systemctl daemon-reload`.
+3. Removes `/var/app/<app>` entirely: its deployed config and any data a Quadlet
+   bind-mounts under it.
+4. Runs `systemctl daemon-reload`.
 
-Config/data under `/var/app/<app>` is **left in place** — it may hold persistent
-state, and `reverse_proxy`'s tree holds other apps' route snippets. The route
-stops resolving when the deploy playbook reloads Caddy (post-task). After a
-decommission has run on the host, delete the role call.
+> **`absent` is destructive and not reversible. Back the app up before setting it.**
+> Whatever is under `/var/app/<app>` goes, including anything the container wrote
+> there. The route stops resolving when the deploy playbook reloads Caddy (post-task).
+> After a decommission has run on the host, delete the role call.
+
+Two things `absent` does **not** remove, because they outlive the units that declared
+them and one of them holds Caddy's TLS certificates: **Podman named volumes**
+(`caddy-data`, `caddy-config`) and **networks** (`web`). Removing the `.volume`/`.network`
+Quadlet file does not delete the volume or network it created. Clear those by hand with
+`podman volume rm` / `podman network rm` once you are sure — and note that discarding
+`caddy-data` forces certificate re-issuance, which Let's Encrypt rate-limits to 5
+duplicates per week.
 
 ## Role parameters
 
@@ -101,20 +112,27 @@ decommission has run on the host, delete the role call.
 ## Install manifest
 
 A `source` deploy records the absolute host paths it installed to
-`/var/lib/application/<app>.manifest`, one per line. Both a later deploy
-and a decommission work from that file rather than re-globbing
-`apps/<app>/{quadlet,unit}/`, which by then may name different files or be gone
-entirely — so a renamed or deleted Quadlet does not linger on the host as an
-orphaned unit, and a decommission needs no source tree at all.
+`/var/lib/application/<app>.manifest`, one per line — Quadlet files, systemd units, and
+every file of the config tree. Both a later deploy and a decommission work from that
+file rather than re-deriving from `apps/<app>/`, which by then may name different files
+or be gone entirely, so a renamed or deleted file does not linger on the host and a
+decommission needs no source tree at all.
 
-The manifest is host state acted on as root, so every recorded path is checked
-against `application_system_dir` / `application_unit_dir` before anything is
-removed; a manifest listing a path outside them fails the run without deleting
-anything.
+The manifest is host state acted on as root, so every recorded path is checked before
+anything is removed. A line is legal in exactly two shapes: a single path segment
+directly inside `application_system_dir` / `application_unit_dir`, or any file nested
+under this app's own `/var/app/<app>/config`. `.` and `..` segments are refused in both,
+and a manifest containing one illegal line fails the run without deleting anything.
 
-Only files are reconciled. A unit dropped from the app that is still running keeps
-running until it is stopped or the host reboots — remove it from
-`application_enable_units` and stop it once by hand.
+Why a manifest and not a destination diff: `/var/app/reverse_proxy/config/` also holds
+`conf.d/*.caddy` route snippets generated for *other* apps, which exist nowhere in the
+source tree. Deleting whatever is not in `apps/<app>/config/` would wipe every route on
+every converge. A manifest only ever removes what a previous deploy recorded installing,
+so generated and runtime files are invisible to it.
+
+Only files are reconciled — a pruned tree can leave empty directories behind. And a unit
+dropped from the app that is still running keeps running until it is stopped or the host
+reboots: remove it from `application_enable_units` and stop it once by hand.
 
 ## Caddy routing
 
@@ -210,7 +228,8 @@ A `simple` app — one image behind the reverse proxy, no source dir:
       application_domain: nasplan.cloudyhome.org
 ```
 
-Decommission an app (leave the call in place for one converge, then delete it):
+Decommission an app (leave the call in place for one converge, then delete it).
+This destroys `/var/app/<app>` — back it up first:
 
 ```yaml
     - role: application
