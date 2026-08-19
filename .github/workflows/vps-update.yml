@@ -2,14 +2,10 @@ name: VPS Package Update
 
 on:
   schedule:
-    # Runs every Sunday at 02:00 UTC — patches only, never reboots.
+    # Every Sunday at 02:00 UTC. Reboots inside that window when the update needs one,
+    # so a kernel does not sit unapplied on an internet-facing host.
     - cron: '0 2 * * 0'
-  workflow_dispatch:  # Manual run — optionally reboot if required
-    inputs:
-      reboot:
-        description: 'Reboot the VPS if the update requires it'
-        type: boolean
-        default: false
+  workflow_dispatch:  # Manual run — same behaviour as the schedule
 
 permissions:
   contents: read
@@ -54,7 +50,6 @@ jobs:
             -i "${VPS_HOST}," \
             -u "${VPS_USER}" \
             --private-key ~/.ssh/vps_key \
-            -e "do_reboot=${{ inputs.reboot || false }}" \
             playbooks/update_packages.yml -v
 
       - name: Clean up SSH key
