@@ -32,9 +32,12 @@ application_app_state_dir: "{{ application_config_root }}/{{ application_name }}
 # units and config tree alike. Both a later deploy (to drop files it no longer
 # installs) and decommission read this manifest instead of re-deriving from the
 # controller's apps/<name>/ tree, which by then may name different files or be gone.
-# Root-owned; every recorded path is allowlisted before anything is removed.
-application_manifest_dir: /var/lib/application
-application_manifest_file: "{{ application_manifest_dir }}/{{ application_name }}.manifest"
+#
+# It lives inside the app's own state dir so the two share fate: the absent path drops
+# that whole tree, which takes the manifest with it, and a hand-removed or restored
+# /var/app/<app> cannot leave a stale record behind. Root-owned; every recorded path is
+# allowlisted before anything is removed.
+application_manifest_file: "{{ application_app_state_dir }}/.install-manifest"
 
 # The controller-side sources a 'source' deploy installs from. quadlet/ and unit/ are
 # flat — installed by basename — while config/ is a tree whose layout is preserved, so

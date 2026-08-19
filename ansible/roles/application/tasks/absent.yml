@@ -62,16 +62,12 @@
       '{{ application_name }}' does not compose one.
     quiet: true
 
-- name: "Remove config and data of app {{ application_name }}"
+# Takes the install manifest with it — it lives inside this tree — so there is no
+# separate bookkeeping to clean up.
+- name: "Remove config, data and manifest of app {{ application_name }}"
   ansible.builtin.file:
     path: "{{ application_app_state_dir }}"
     state: absent
-
-- name: "Remove install manifest for app {{ application_name }}"
-  ansible.builtin.file:
-    path: "{{ application_manifest_file }}"
-    state: absent
-  when: application_kind == 'source'
 
 # Caddy route snippet, if the app registered one. It lives in reverse_proxy's config
 # tree, not this app's, so it needs removing explicitly. The route stops resolving when

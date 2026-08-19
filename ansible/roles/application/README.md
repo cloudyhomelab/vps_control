@@ -106,14 +106,15 @@ duplicates per week.
 | `application_system_dir`  | `/etc/containers/systemd`    | Quadlet install dir on the host.         |
 | `application_unit_dir`    | `/etc/systemd/system`        | Plain-unit install dir on the host.      |
 | `application_config_root` | `/var/app`                   | Config root → `<root>/<app>/config`.     |
-| `application_manifest_dir` | `/var/lib/application`      | Install manifests, one per `source` app. |
 | `application_caddy_confd` | `/var/app/reverse_proxy/config/conf.d` | Dir for generated route snippets. |
 
 ## Install manifest
 
 A `source` deploy records the absolute host paths it installed to
-`/var/lib/application/<app>.manifest`, one per line — Quadlet files, systemd units, and
-every file of the config tree. Both a later deploy and a decommission work from that
+`/var/app/<app>/.install-manifest`, one per line — Quadlet files, systemd units, and
+every file of the config tree. It sits inside the app's own state dir so the two share
+fate: `absent` drops that tree and the manifest goes with it, and a hand-removed or
+restored `/var/app/<app>` cannot leave a stale record behind. Both a later deploy and a decommission work from that
 file rather than re-deriving from `apps/<app>/`, which by then may name different files
 or be gone entirely, so a renamed or deleted file does not linger on the host and a
 decommission needs no source tree at all.
@@ -123,6 +124,12 @@ anything is removed. A line is legal in exactly two shapes: a single path segmen
 directly inside `application_system_dir` / `application_unit_dir`, or any file nested
 under this app's own `/var/app/<app>/config`. `.` and `..` segments are refused in both,
 and a manifest containing one illegal line fails the run without deleting anything.
+
+`absent` reads it too, and has to: the Quadlet files and systemd units it must remove
+live in `/etc/containers/systemd/` and `/etc/systemd/system/`, which are shared with
+every other app and cannot be relocated — systemd and the Quadlet generator only read
+those paths. Dropping `/var/app/<app>` alone would leave them behind, and the generator
+would recreate the service on the next `daemon-reload`.
 
 Why a manifest and not a destination diff: `/var/app/reverse_proxy/config/` also holds
 `conf.d/*.caddy` route snippets generated for *other* apps, which exist nowhere in the

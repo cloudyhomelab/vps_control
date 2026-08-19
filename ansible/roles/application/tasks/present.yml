@@ -96,9 +96,10 @@
   when: application_kind == 'source'
   notify: Reload systemd
 
-- name: "Ensure manifest directory exists for app {{ application_name }}"
+# The config copy above creates this, but only for an app that ships a config tree.
+- name: "Ensure state directory exists for app {{ application_name }}"
   ansible.builtin.file:
-    path: "{{ application_manifest_dir }}"
+    path: "{{ application_app_state_dir }}"
     state: directory
     owner: "{{ application_owner }}"
     group: "{{ application_group }}"
