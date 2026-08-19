@@ -65,8 +65,22 @@ application_network: web.network             # shared network the container join
 application_env: {}                          # rendered as Environment= lines
 application_volumes: []                      # raw Volume= values
 application_publish_ports: []                # raw PublishPort= values
-application_container_options: []             # extra raw [Container] lines
-application_service_options: []              # extra raw [Service] lines (e.g. TimeoutStartSec=)
+application_container_options: []            # extra raw [Container] lines
+application_service_options: []              # extra raw [Service] lines
+
+# Healthcheck policy for a 'simple' app. The probe itself cannot have a useful default
+# — an HTTP app wants a request, Postgres wants pg_isready — so it comes from the call
+# site, and the rest of the block is fleet policy set once here. Naming a command turns
+# on Notify=healthy, which is what makes a bad image a failed start that
+# `podman auto-update` rolls back instead of a container that is up and serving nothing.
+# Leave application_health_cmd empty for an app that cannot be probed.
+application_health_cmd: ""                   # e.g. pg_isready -q -U postgres
+application_health_interval: 15s
+application_health_retries: 3
+application_health_start_period: 60s
+# Deadline for the first passing probe: Notify=healthy makes systemd's 90s default a
+# hard limit, which is tight for a cold start and would roll back a good image.
+application_start_timeout: 180
 
 # Units this role starts/enables (present) and stops (absent). A 'simple' app
 # renders exactly one <name>.service, so default to that when the caller names
@@ -91,3 +105,5 @@ application_managed_units: >-
 # application_network/env/volumes/publish_ports: optional — see defaults above.
 # application_container_options/service_options: optional — raw lines for the
 #   [Container] / [Service] sections, for keys this role has no parameter of its own.
+# application_health_cmd:   optional — probe command; set it to get a healthcheck and
+#   the auto-update rollback that depends on it. See the health defaults above.
