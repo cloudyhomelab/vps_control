@@ -1,0 +1,16 @@
+[Unit]
+Description=Reclaim dangling container images
+Documentation=man:podman-image-prune(1)
+
+[Service]
+Type=oneshot
+# Dangling only, deliberately. `podman auto-update` leaves the superseded image
+# untagged every time it pulls a new :latest, and that is the whole accumulation
+# problem. Two things this must not become:
+#   --volumes      -> auto-update stops a container before restarting it, so a volume
+#                     can look unused mid-window. systemd-caddy-data holds the TLS
+#                     certificates, and re-issuing them hits Let's Encrypt rate limits.
+#   image prune -a -> a Quadlet container is removed when it stops, so a stopped app's
+#                     image looks unreferenced and would be reclaimed, forcing a re-pull
+#                     before it can start again.
+ExecStart=/usr/bin/podman image prune -f

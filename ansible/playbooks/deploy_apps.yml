@@ -40,6 +40,14 @@
       # 127.0.0.1 rather than localhost, which resolves to ::1 where nothing listens.
       application_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
 
+    # Host upkeep, not an app: a weekly timer reclaiming the images auto-update leaves
+    # untagged. No quadlet/ or config/ of its own, just the two systemd units.
+    - role: application
+      application_kind: source
+      application_name: maintenance
+      application_enable_units:
+        - podman-prune.timer
+
     - role: application
       application_state: absent
       application_kind: simple
