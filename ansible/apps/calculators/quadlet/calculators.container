@@ -6,6 +6,7 @@ Wants=network-online.target
 [Container]
 Image=docker.io/binarycodes/calculators:latest
 ContainerName=calculators
+Environment=FORWARD_HEADERS_STRATEGY=native
 AutoUpdate=registry
 # Liveness probe guarding that auto-update: Notify=healthy withholds "started"
 # until it first passes, so a bad :latest image is a failed start that
