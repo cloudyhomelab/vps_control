@@ -1,0 +1,20 @@
+# Which key SOPS encrypts with, so nobody has to remember a recipient on the command line:
+# `sops edit ansible/apps/whichday/secrets.sops.yaml` picks it up from here. One file per
+# app, in the app's own directory — the application role looks for it there.
+#
+# Only encryption consults this file. Decryption reads the recipients recorded inside the
+# encrypted file itself, so a deploy never looks here — and rotating to a new key means
+# re-encrypting the files, not just editing this rule.
+creation_rules:
+  # Matched against the path as typed, so it is deliberately not anchored: `sops edit`
+  # finds the rule whether it is run from the repo root or from ansible/.
+  #
+  # No encrypted_regex: sops encrypts every value and leaves the keys readable, which is
+  # what makes a rotation reviewable. (One to leave alone — sops matches with Go's RE2,
+  # which has no lookahead, so the usual `^(?!sops$).*` incantation matches nothing and
+  # quietly writes the values in cleartext.)
+  - path_regex: secrets\.sops\.yaml$
+    # REPLACE THIS with your own age public key (`age-keygen`, the "public key:" line).
+    # The private half belongs in the SOPS_AGE_KEY GitHub secret and nowhere else.
+    # See ansible/SECRETS.md.
+    age: age1REPLACE_WITH_YOUR_AGE_PUBLIC_KEY

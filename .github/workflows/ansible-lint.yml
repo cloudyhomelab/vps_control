@@ -29,6 +29,10 @@ jobs:
           pip install --upgrade pip
           pip install ansible-lint
 
+      - name: Install Ansible collections
+        working-directory: ansible
+        run: ansible-galaxy collection install -r requirements.yml
+
       # Both checks run from ansible/ so ansible.cfg applies: its roles_path=./roles is
       # what makes the application role resolvable.
       #

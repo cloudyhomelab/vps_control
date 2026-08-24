@@ -1,0 +1,5 @@
+# An app's secrets belong here only as SOPS output. Anything else named secrets* is
+# ignored, so the decrypted copy you were editing cannot be committed by a stray
+# `git add -A`.
+*/secrets*
+!*/secrets.sops.yaml

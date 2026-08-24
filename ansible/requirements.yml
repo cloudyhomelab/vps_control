@@ -1,0 +1,10 @@
+---
+# Collections the playbooks need beyond ansible-core, installed by CI before both the
+# lint job and the deploy (`ansible-galaxy collection install -r requirements.yml`).
+#
+# Unpinned on purpose: Dependabot does not track Galaxy, so a pin here would be a
+# version nobody updates. The one collection in use is a thin wrapper around the sops
+# CLI — which *is* pinned, in the workflow that installs it.
+collections:
+  # Decrypts the SOPS-encrypted app secrets during a deploy. See ansible/SECRETS.md.
+  - name: community.sops

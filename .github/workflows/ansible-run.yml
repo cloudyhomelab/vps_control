@@ -31,6 +31,8 @@ on:
         required: true
       VPS_KNOWN_HOSTS:
         required: true
+      SOPS_AGE_KEY:
+        required: false
 
 # Least privilege: this workflow only reads the repo and deploys over SSH.
 permissions:
@@ -49,6 +51,21 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install ansible
+
+      - name: Install Ansible collections
+        working-directory: ansible
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Install sops
+        env:
+          SOPS_VERSION: v3.13.3
+          SOPS_SHA256: e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b
+        run: |
+          set -eu
+          curl -sSfLo /tmp/sops \
+            "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64"
+          printf '%s  /tmp/sops\n' "${SOPS_SHA256}" | sha256sum -c -
+          sudo install -m 0755 /tmp/sops /usr/local/bin/sops
 
       - name: Write SSH private key to file
         env:
@@ -73,6 +90,7 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           PLAYBOOK: ${{ inputs.playbook }}
           EXTRA_VARS: ${{ inputs.extra_vars }}
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
           set -eu
           ARGS="-i ${VPS_HOST}, -u ${VPS_USER} --private-key ${HOME}/.ssh/vps_key"
