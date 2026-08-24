@@ -30,11 +30,23 @@
 # task that deletes them. application_config_found is included because its `find` is
 # skipped for apps with no config tree, which would otherwise leave the previous app's
 # file list standing.
+#
+# The secret facts are here for the same reason and matter as much: the decrypted values
+# of one app must never be visible to the next, the digest read is skipped for an app with
+# no record, so a stale register would make this app's secrets look already-stored, and a
+# stale create result would restart an app that rotated nothing.
 - name: "Reset install path facts for app {{ application_name }}"
   ansible.builtin.set_fact:
     application_manifest_paths: []
     application_installed_paths: []
     application_config_found: {}
+    application_secrets_stat: {}
+    application_secret_load: {}
+    application_secret_names_to_store: []
+    application_secret_names_to_drop: []
+    application_secret_digest_stat: {}
+    application_secret_digest_slurp: {}
+    application_secret_create: {}
 
 - name: "Deploy app {{ application_name }}"
   ansible.builtin.include_tasks: present.yml

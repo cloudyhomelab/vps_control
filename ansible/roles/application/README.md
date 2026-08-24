@@ -17,10 +17,14 @@ files, plain systemd units, and config tree to the host.
 ```
 apps/
   <app>/
-    quadlet/   # *.container, *.pod, *.network, *.volume, *.kube, ... (optional)
-    unit/      # plain *.service, *.timer, *.socket, ...               (optional)
-    config/    # arbitrary tree, copied recursively to the host        (optional)
+    quadlet/            # *.container, *.pod, *.network, *.volume, *.kube, ... (optional)
+    unit/               # plain *.service, *.timer, *.socket, ...              (optional)
+    config/             # arbitrary tree, copied recursively to the host       (optional)
+    secrets.sops.yaml   # SOPS-encrypted podman secrets                        (optional)
 ```
+
+A `simple` app has no such directory, except when it needs secrets: then it holds that one
+file and nothing else.
 
 Each subdirectory is optional — an app may ship only a Quadlet, only config, etc.
 
@@ -57,7 +61,9 @@ needed. Just give it an image (and usually a domain). The container is named
    (`source`) — and the `<name>.caddy` route snippet.
 3. Removes `/var/app/<app>` entirely: its deployed config and any data a Quadlet
    bind-mounts under it.
-4. Runs `systemctl daemon-reload`.
+4. Removes the app's podman secrets, by the names recorded in
+   `/var/app/<app>/.secret-digests` — read before that directory goes.
+5. Runs `systemctl daemon-reload`.
 
 > **`absent` is destructive and not reversible. Back the app up before setting it.**
 > Whatever is under `/var/app/<app>` goes, including anything the container wrote
@@ -83,6 +89,7 @@ duplicates per week.
 | `application_domain`       | no              | Public hostname; when set, a Caddy route is added.            |
 | `application_upstream`     | no              | Upstream container name to proxy to (default `application_name`). |
 | `application_port`         | no              | Upstream port for the Caddy route (default `8080`).           |
+| `application_data_dirs`    | no              | Bind-mount dirs to pre-create with a given owner (see below). |
 
 ### `simple`-kind parameters
 
@@ -184,6 +191,113 @@ be probed; it then gets no health block and no rollback protection.
 
 `source` apps declare these keys in their own Quadlet files (see
 `apps/calculators/quadlet/calculators.container`), so this policy does not reach them.
+
+## Secrets
+
+`application_env` renders `Environment=` lines into a Quadlet, which is a unit file and
+world-readable — fine for a hostname, wrong for a client secret. Instead, an app that needs
+secrets ships one SOPS-encrypted file in its own directory, keyed by the podman secret
+names:
+
+```yaml
+# apps/whichday/secrets.sops.yaml   (values encrypted; keys readable)
+whichday-oidc-issuer-uri: https://accounts.example.com
+whichday-oidc-client-id: …
+whichday-oidc-client-secret: …
+```
+
+Nothing at the call site, for either kind. The role looks for
+`apps/<app>/secrets.sops.yaml` the same way it looks for the app's `quadlet/` and
+`config/` directories, decrypts it on the controller, and stores each entry in podman's
+secret store. The file sits at the app root, outside the three directories the role
+installs from, so nothing copies it to the host.
+
+How the container reaches a stored value differs by kind:
+
+**`simple`** — the role renders the reference, deriving the variable from the name:
+upper-cased, dashes as underscores. The file above yields
+
+```ini
+Secret=whichday-oidc-client-secret,type=env,target=WHICHDAY_OIDC_CLIENT_SECRET
+```
+
+so the name has to be the variable the app reads, spelled in lower case with dashes. That
+is usually no constraint, since podman secret names are host-global and want an app prefix
+anyway — and app-prefixed variables are what most images expect. When an image insists on a
+bare name (`POSTGRES_PASSWORD`), the choice is a host-global secret called
+`postgres-password` or the `source` kind.
+
+**`source`** — the app writes the line itself and can point any name at any variable:
+
+```ini
+# apps/whichday/quadlet/whichday.container
+Secret=whichday-oidc-client-secret,type=env,target=WHICHDAY_OIDC_CLIENT_SECRET
+```
+
+The name is then the whole contract between file and Quadlet — rename it in one and the
+container fails to start referencing a name that no longer exists.
+
+The values are loaded into a single dict, never top-level variables: podman secret names
+are not legal variable names, and nothing sensitive becomes a play variable. Each is handed
+to podman on **stdin**, never in a command line, since `/proc/<pid>/cmdline` is
+world-readable and would expose it to every user on the host for the life of the process.
+
+What this does and does not buy you. The value still ends up in the container's
+environment, so it is readable by the process itself, by root, and in `podman inspect` of
+the running container. What it avoids is a copy sitting in a `0644` file under
+`/etc/containers/systemd/`, in a config tree, or in git. Podman's default file driver keeps
+the store in a root-only file, unencrypted — treat "root on the host" as the trust
+boundary either way.
+
+**Rotation and renames.** Podman reads a secret when it *creates* a container, and cannot
+update a stored one in place on every version this runs on, so the role records a SHA-256
+per secret in `/var/app/<app>/.secret-digests` (`0600`, root). A converge where nothing
+changed touches nothing. A changed value is removed and re-created, and the app's units are
+**restarted** rather than started, since a running container would otherwise keep serving
+with the old value. A name dropped from the file — renamed, or deleted — is removed from
+the host, the same reconciliation the [install manifest](#install-manifest) does for files.
+
+That record is also how `absent` knows what to remove: secrets are host-global and not part
+of `/var/app/<app>`, so they are dropped by name, read from the host rather than from the
+encrypted file, which by then may be gone.
+
+**Requirements.** The controller needs the `sops` binary and the `community.sops`
+collection (CI installs both; see `ansible/requirements.yml`), and the decryption key —
+without it the run fails at the decrypting task, before anything on the host changes. The
+host's podman must understand `Secret=` in a Quadlet `[Container]` section; too old and the
+generator refuses the unit at `daemon-reload`.
+
+See `ansible/SECRETS.md` for the key itself and how CI gets it.
+
+## Pre-created data directories
+
+A container that writes to a bind mount needs the host directory to exist with the right
+owner first: podman creates a missing path as `root:root`, and an image running as a
+non-root user then cannot write in it. `application_data_dirs` creates them before the
+container starts.
+
+```yaml
+      application_data_dirs:
+        # Relative to /var/app/<app>. 10001 is the uid the image runs as; if upstream
+        # changes it, this must follow or the app starts and fails to write.
+        - path: data
+          owner: "10001"
+          group: "10001"
+          mode: "0700"
+      application_volumes:
+        - "{{ application_app_state_dir }}/data:/app/data"
+```
+
+A `source` app declares `application_data_dirs` the same way and writes the matching
+`Volume=` line in its own Quadlet, where the host path has to be spelled out in full
+(`/var/app/<app>/data:/app/data`) — a static file cannot reference the role's variables.
+
+Paths are relative to the app's own state dir, so they cannot name another app's: absolute
+paths and `..` are refused, since the role creates these as root and `absent` deletes the
+tree they live in. Which is the
+trade against a named volume: a bind mount here is backed up and restored with the rest
+of `/var/app/<app>`, and **destroyed with it** on decommission, where a named volume
+would survive.
 
 ## Unit names and boot persistence
 

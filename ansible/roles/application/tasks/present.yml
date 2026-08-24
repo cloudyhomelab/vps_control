@@ -1,4 +1,62 @@
 ---
+# Secrets: an app that needs any ships apps/<app>/secrets.sops.yaml, keyed by the podman
+# secret names. Found rather than declared, like the app's quadlet/ and config/
+# directories, so that file is the only place the set is written down. First in the file
+# because a 'simple' app's Quadlet is rendered from those names below.
+- name: "Check for encrypted secrets of app {{ application_name }}"
+  ansible.builtin.stat:
+    path: "{{ application_secrets_file }}"
+  delegate_to: localhost
+  become: false
+  register: application_secrets_stat
+
+# Decrypted on the controller; the values reach the host only through the secret store
+# below. no_log because the result carries them and the deploy runs with -v, which prints
+# task results.
+- name: "Load encrypted secrets of app {{ application_name }}"
+  community.sops.load_vars:
+    file: "{{ application_secrets_file }}"
+    name: application_secret_values
+    # Pinned rather than left on 'auto', so what this returns does not change with the
+    # controller's ansible-core version.
+    return_method: facts-only
+  register: application_secret_load
+  no_log: true
+  when: application_secrets_stat.stat.exists
+
+# Taken from the register rather than used where the task above put it: main.yml clears
+# the per-app facts with set_fact, whose precedence beats a fact returned by a later task,
+# so that empty default would shadow the loaded values for the whole run. Assigning here
+# also means this runs for every app, and one app's secrets can never carry into the
+# next — an app with no encrypted file lands back on the empty default.
+- name: "Collect the decrypted secrets of app {{ application_name }}"
+  ansible.builtin.set_fact:
+    application_secret_values: >-
+      {{ application_secret_load.ansible_facts.application_secret_values | default({}, true) }}
+  no_log: true
+
+- name: "Verify every secret can be stored for app {{ application_name }}"
+  ansible.builtin.assert:
+    that:
+      # Passed to `podman secret` as root, and useful only if a Quadlet can reference it.
+      - item.key is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+      # A 'simple' app's Secret= line is rendered from this key, so the key also has to
+      # spell a legal environment variable once upper-cased — no dots, no leading digit.
+      - application_kind != 'simple' or item.key is match('^[A-Za-z][A-Za-z0-9-]*$')
+      # Refused here rather than at container start, where an empty value surfaces as the
+      # app failing to boot with no explanation of why.
+      - item.value is not none and (item.value | string | length > 0)
+    fail_msg: >-
+      {{ application_name }}/secrets.sops.yaml must map podman secret names (letters,
+      digits, dot, dash or underscore, not starting with a dot) to non-empty values. For a
+      'simple' app the name is also the variable the container sees, upper-cased with
+      dashes as underscores, so it is limited to letters, digits and dashes.
+    quiet: true
+  loop: "{{ application_secret_values | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  no_log: true
+
 # 'simple' kind: render the single-container Quadlet from inline params. 'source'
 # kind installs its container from a file instead (the copy tasks below).
 - name: "Render Quadlet for container {{ application_name }}"
@@ -101,7 +159,9 @@
   when: application_kind == 'source'
   notify: Reload systemd
 
-# The config copy above creates this, but only for an app that ships a config tree.
+# The config copy above creates this, but only for an app that ships a config tree. A
+# 'simple' app needs it as soon as it owns host state of its own: a bind-mounted data
+# directory below it, or the digests recording which secrets it last stored.
 - name: "Ensure state directory exists for app {{ application_name }}"
   ansible.builtin.file:
     path: "{{ application_app_state_dir }}"
@@ -109,7 +169,10 @@
     owner: "{{ application_owner }}"
     group: "{{ application_group }}"
     mode: "{{ application_dir_mode }}"
-  when: application_kind == 'source'
+  when: >-
+    application_kind == 'source'
+    or application_data_dirs | length > 0
+    or application_secret_values | length > 0
 
 # Written last: a failure part-way through the install leaves the older, wider
 # manifest in place, so the next run still knows about every file on the host.
@@ -121,6 +184,123 @@
     group: "{{ application_group }}"
     mode: "{{ application_file_mode }}"
   when: application_kind == 'source'
+
+# Bind-mount targets the app itself writes to, named relative to the app's state dir.
+# Podman creates a missing host path as root:root, which an unprivileged container cannot
+# write in, so the directory is made here with the owner the image runs as. The deploy
+# would not notice otherwise: the mount succeeds either way, and only the app hits the
+# failure, later, when it tries to write.
+- name: "Verify data directories are relative paths for app {{ application_name }}"
+  ansible.builtin.assert:
+    that:
+      # Created as root with a caller-supplied owner, and removed with the state tree on
+      # absent, so a path that climbed out of this app's own directory would hand another
+      # app's data away — or take it with it. Relative and '..'-free is what makes that
+      # impossible, rather than a prefix check on a path the caller composed.
+      - item.path is string
+      - not item.path.startswith('/')
+      - item.path.split('/') | intersect(['', '.', '..']) | length == 0
+    fail_msg: >-
+      Refusing to create '{{ item.path | default('(no path)') }}': an entry of
+      application_data_dirs names a path relative to {{ application_app_state_dir }} —
+      'data', not '/var/app/<app>/data' — and may not climb out of it with '..'.
+    quiet: true
+  loop: "{{ application_data_dirs }}"
+  loop_control:
+    label: "{{ item.path | default('(no path)') }}"
+
+- name: "Ensure data directories exist for app {{ application_name }}"
+  ansible.builtin.file:
+    path: "{{ application_app_state_dir }}/{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default(application_owner) }}"
+    group: "{{ item.group | default(application_group) }}"
+    mode: "{{ item.mode | default(application_dir_mode) }}"
+  loop: "{{ application_data_dirs }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: "Stat recorded secret digests for app {{ application_name }}"
+  ansible.builtin.stat:
+    path: "{{ application_secret_digest_file }}"
+  register: application_secret_digest_stat
+
+- name: "Read recorded secret digests for app {{ application_name }}"
+  ansible.builtin.slurp:
+    src: "{{ application_secret_digest_file }}"
+  register: application_secret_digest_slurp
+  when: application_secret_digest_stat.stat.exists | default(false)
+
+# Storing is create-only, so what changed has to be worked out first. Compared as
+# {name, digest} pairs: a secret is stored again when its value changed and equally when
+# it has never been stored — a host whose secret store was cleared, or a name new to the
+# file. Recorded names the file no longer holds are dropped; a rename would otherwise
+# leave the old secret on the host with nothing referencing it. Digests and names only —
+# no value reaches a fact, which the deploy is verbose enough to print.
+- name: "Reconcile recorded secrets of app {{ application_name }}"
+  ansible.builtin.set_fact:
+    application_secret_names_to_store: >-
+      {{ (application_secret_digests | dict2items)
+         | difference(application_secret_recorded | dict2items)
+         | map(attribute='key') | list }}
+    application_secret_names_to_drop: >-
+      {{ application_secret_recorded.keys() | difference(application_secret_digests.keys()) | list }}
+  vars:
+    application_secret_recorded: >-
+      {{ (application_secret_digest_slurp.content | default('') | b64decode
+          | default('{}', true)) | from_json }}
+
+# Podman cannot update a stored secret in place on every version this may run on, and
+# `create` refuses a name that exists, so a rotation is a remove followed by a create.
+# The same pass removes the ones dropped from the file.
+- name: "Remove superseded podman secrets of app {{ application_name }}"
+  ansible.builtin.command:
+    argv: [podman, secret, rm, "{{ item }}"]
+  loop: >-
+    {{ application_secret_names_to_store | default([])
+       | union(application_secret_names_to_drop | default([])) }}
+  register: application_secret_rm
+  changed_when: application_secret_rm.rc == 0
+  failed_when:
+    - application_secret_rm.rc != 0
+    - "'no such secret' not in (application_secret_rm.stderr | default('') | lower)"
+
+# The value goes in on stdin, never in argv: /proc/<pid>/cmdline is world-readable, so
+# a command line carrying the secret would expose it to every user on the host for as
+# long as the process lives.
+- name: "Store podman secrets of app {{ application_name }}"
+  ansible.builtin.command:
+    argv: [podman, secret, create, "{{ item.key }}", "-"]
+    stdin: "{{ item.value }}"
+    stdin_add_newline: false
+  loop: >-
+    {{ application_secret_values | dict2items
+       | selectattr('key', 'in', application_secret_names_to_store | default([])) | list }}
+  loop_control:
+    label: "{{ item.key }}"
+  register: application_secret_create
+  changed_when: true
+  no_log: true
+
+# Written after the store succeeds, so a run that fails part-way leaves the older record
+# standing and the next one retries the secrets it did not get to.
+- name: "Record secret digests for app {{ application_name }}"
+  ansible.builtin.copy:
+    content: "{{ application_secret_digests | to_nice_json }}\n"
+    dest: "{{ application_secret_digest_file }}"
+    owner: "{{ application_owner }}"
+    group: "{{ application_group }}"
+    # Not a secret, but a digest of one: readable only by root, like the store itself.
+    mode: "0600"
+  when: application_secret_values | length > 0
+
+# An app that has stopped shipping secrets altogether: the record goes, having just been
+# used to drop them.
+- name: "Forget recorded secret digests of app {{ application_name }}"
+  ansible.builtin.file:
+    path: "{{ application_secret_digest_file }}"
+    state: absent
+  when: application_secret_values | length == 0
 
 # Caddy route: only written when the app opts in with application_domain. The
 # snippet is imported by the central Caddyfile, so no daemon-reload is needed and
@@ -148,10 +328,13 @@
 - name: Apply unit changes (systemd daemon-reload)
   ansible.builtin.meta: flush_handlers
 
+# Podman reads a secret when it creates the container, so a rotated value reaches the
+# app only through a new container: 'started' on an already-running unit would report
+# success and keep serving with the old secret.
 - name: "Start units for app {{ application_name }}"
   ansible.builtin.systemd:
     name: "{{ item }}"
-    state: started
+    state: "{{ 'restarted' if (application_secret_create.changed | default(false)) else 'started' }}"
   loop: "{{ application_managed_units }}"
 
 # Quadlet-generated services live in /run and are "transient or generated",

@@ -85,6 +85,35 @@ argument_specs:
         description: >-
           simple kind only. Raw lines appended to the [Service] section, for unit keys
           this role has no parameter of its own.
+      application_data_dirs:
+        type: list
+        elements: dict
+        required: false
+        default: []
+        description: >-
+          Directories to create before the container starts, for bind mounts the app
+          writes to itself — podman would create the host path as root:root, which an
+          unprivileged container cannot write in. Paths are relative to the app's own state
+          dir, and are removed with it on absent.
+        options:
+          path:
+            type: str
+            required: true
+            description: >-
+              Path relative to the app's state dir (application_config_root/<app>), e.g.
+              'data'. Absolute paths and '..' are refused.
+          owner:
+            type: str
+            required: false
+            description: Owner, normally the numeric uid the image runs as (default root).
+          group:
+            type: str
+            required: false
+            description: Group, normally the numeric gid the image runs as (default root).
+          mode:
+            type: str
+            required: false
+            description: Permissions (default application_dir_mode).
       application_health_cmd:
         type: str
         required: false

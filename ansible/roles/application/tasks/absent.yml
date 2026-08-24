@@ -46,6 +46,15 @@
   when: application_kind == 'source'
   notify: Reload systemd
 
+# Which secrets this app owns, from the record the last deploy wrote. Read before the
+# state tree that holds it is removed, and from the host rather than the encrypted file,
+# so a decommission needs nothing on the controller — the app's source tree may be gone.
+- name: "Read recorded secret digests for app {{ application_name }}"
+  ansible.builtin.slurp:
+    src: "{{ application_secret_digest_file }}"
+  register: application_secret_digest_slurp
+  failed_when: false
+
 # The one task in this role that removes a directory tree, so the composed path is
 # re-checked here rather than trusted from main.yml's input validation. A name with a
 # slash or a leading dot would make this reach application_config_root itself, taking
@@ -68,6 +77,23 @@
   ansible.builtin.file:
     path: "{{ application_app_state_dir }}"
     state: absent
+
+# Podman secrets are host-global, so they are not part of the tree removed above and
+# have to be dropped by name. Names are re-checked here because they are read from a host
+# file and passed to a root command; a repeat decommission stays green, since a name that
+# is no longer stored is tolerated.
+- name: "Remove podman secrets of app {{ application_name }}"
+  ansible.builtin.command:
+    argv: [podman, secret, rm, "{{ item }}"]
+  loop: >-
+    {{ ((application_secret_digest_slurp.content | default('') | b64decode
+         | default('{}', true)) | from_json).keys()
+       | select('match', '^[A-Za-z0-9][A-Za-z0-9._-]*$') | list }}
+  register: application_secret_rm
+  changed_when: application_secret_rm.rc == 0
+  failed_when:
+    - application_secret_rm.rc != 0
+    - "'no such secret' not in (application_secret_rm.stderr | default('') | lower)"
 
 # Caddy route snippet, if the app registered one. It lives in reverse_proxy's config
 # tree, not this app's, so it needs removing explicitly. The route stops resolving when

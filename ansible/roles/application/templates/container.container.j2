@@ -11,6 +11,9 @@ Network={{ application_network }}
 {% for key, value in application_env.items() %}
 Environment={{ key }}={{ value }}
 {% endfor %}
+{% for name in application_secret_values | sort %}
+Secret={{ name }},type=env,target={{ name | upper | replace('-', '_') }}
+{% endfor %}
 {% for vol in application_volumes %}
 Volume={{ vol }}
 {% endfor %}

@@ -11,11 +11,14 @@
 # the role call). Destructive — back the app up first. See README.
 application_state: present
 
-# Source of 'source'-kind app definitions on the Ansible controller.
-# Layout:  {{ application_apps_dir }}/<application_name>/{quadlet,unit,config}
-#   quadlet/  -> Podman Quadlet files (*.container, *.pod, *.network, *.volume, ...)
-#   unit/     -> plain systemd unit files (*.service, *.timer, *.socket, ...)
-#   config/   -> arbitrary config tree, copied recursively to the host
+# App definitions on the Ansible controller.
+# Layout:  {{ application_apps_dir }}/<application_name>/
+#   quadlet/            -> Podman Quadlet files (*.container, *.pod, *.network, ...)
+#   unit/               -> plain systemd unit files (*.service, *.timer, *.socket, ...)
+#   config/             -> arbitrary config tree, copied recursively to the host
+#   secrets.sops.yaml   -> SOPS-encrypted podman secrets (see below)
+# The first three belong to the 'source' kind; the secrets file is read for either kind, so
+# a 'simple' app with secrets has a directory holding just that.
 application_apps_dir: "{{ playbook_dir }}/../apps"
 
 # Destinations on the target host.
@@ -75,6 +78,45 @@ application_publish_ports: []                # raw PublishPort= values
 application_container_options: []            # extra raw [Container] lines
 application_service_options: []              # extra raw [Service] lines
 
+# An app that needs secrets ships one SOPS-encrypted file in its own directory, keyed by
+# the podman secret names its Quadlet references with Secret=:
+#   whichday-oidc-client-secret: ENC[AES256_GCM,...]
+# Discovered, not declared — like the app's quadlet/ and config/ directories — so the
+# encrypted file is the single place the set is written down. It sits at the app root,
+# outside the three directories this role installs from, so nothing copies it to the host.
+# Nothing sensitive is stored in a file this role installs either: a unit file is
+# world-readable by design, which is what makes Environment= the wrong home for a secret.
+# Names are host-global, so prefix them with the app name to keep two apps apart. A
+# 'simple' app gets its Secret= lines rendered from these names, the variable being the
+# name upper-cased with dashes as underscores; a 'source' app writes the line itself and
+# can point it at any variable. See ansible/SECRETS.md.
+application_secrets_file: "{{ application_apps_dir }}/{{ application_name }}/secrets.sops.yaml"
+
+# The decrypted file, as one dict rather than top-level vars: its keys are podman secret
+# names, which are not legal variable names, and nothing sensitive then becomes a play
+# variable. Populated by present.yml when the file exists.
+application_secret_values: {}
+
+# SHA-256 of every secret this app last stored, keyed by secret name. Podman offers no
+# version-independent way to read a stored secret back, so a digest recorded here is what
+# tells the next run which values actually changed — without it, every converge would have
+# to recreate the secrets and restart the app to be sure. Its key set doubles as the record
+# of which secrets the app owns: that is how a later deploy drops one the app has stopped
+# declaring, and how a decommission knows what to remove without the encrypted file.
+# Root-only, and it lives in the app's state dir so a decommission takes it along.
+application_secret_digest_file: "{{ application_app_state_dir }}/.secret-digests"
+application_secret_digests: >-
+  {{ dict(application_secret_values.keys() | list
+          | zip(application_secret_values.values() | list | map('string') | map('hash', 'sha256'))) }}
+
+# Directories to create before the container starts, for a bind mount whose contents the
+# app writes itself: podman would otherwise create the host path as root and a container
+# running unprivileged could not write in it. Each entry is {path, owner, group, mode},
+# where path is relative to this app's own state dir — so it cannot name another app's:
+#   - path: data            # -> {{ application_app_state_dir }}/data
+#     owner: "10001"        # the image's non-root user, by numeric id
+application_data_dirs: []
+
 # Healthcheck policy for a 'simple' app. The probe itself cannot have a useful default
 # — an HTTP app wants a request, Postgres wants pg_isready — so it comes from the call
 # site, and the rest of the block is fleet policy set once here. Naming a command turns
@@ -112,5 +154,6 @@ application_managed_units: >-
 # application_network/env/volumes/publish_ports: optional — see defaults above.
 # application_container_options/service_options: optional — raw lines for the
 #   [Container] / [Service] sections, for keys this role has no parameter of its own.
+# application_data_dirs:    optional — bind-mount directories to pre-create with a given owner.
 # application_health_cmd:   optional — probe command; set it to get a healthcheck and
 #   the auto-update rollback that depends on it. See the health defaults above.
