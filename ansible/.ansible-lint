@@ -6,3 +6,10 @@
 # uses — which also keeps .github/ outside the scanned tree, so workflow YAML is never
 # linted as Ansible content.
 profile: production
+
+# An app's SOPS-encrypted secrets are data, not Ansible content: the file is a map of
+# names to ENC[...] blobs whose length nothing here controls, so yaml[line-length] has
+# nothing useful to say about it. Excluded as a file rather than silenced as a rule, so
+# line length stays enforced everywhere it means something.
+exclude_paths:
+  - "**/secrets.sops.yaml"
