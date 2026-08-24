@@ -17,4 +17,4 @@ creation_rules:
     # REPLACE THIS with your own age public key (`age-keygen`, the "public key:" line).
     # The private half belongs in the SOPS_AGE_KEY GitHub secret and nowhere else.
     # See ansible/SECRETS.md.
-    age: age1REPLACE_WITH_YOUR_AGE_PUBLIC_KEY
+    age: age17nj7rr7s5twjv5mes98c62lgx6qqflfcpna623gd8qfzlfza74us7g2nh2
