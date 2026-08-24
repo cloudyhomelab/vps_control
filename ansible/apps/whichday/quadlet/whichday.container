@@ -1,0 +1,37 @@
+[Unit]
+Description=Whichday day-poll web app
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.io/binarycodes/whichday:latest
+ContainerName=whichday
+Environment=FORWARD_HEADERS_STRATEGY=native
+AutoUpdate=registry
+# Names, not values: the deploy stores these in podman's secret store from
+# ansible/secrets/whichday.sops.yaml, so a rename here needs the same rename there.
+Secret=whichday-oidc-issuer-uri,type=env,target=WHICHDAY_OIDC_ISSUER_URI
+Secret=whichday-oidc-client-id,type=env,target=WHICHDAY_OIDC_CLIENT_ID
+Secret=whichday-oidc-client-secret,type=env,target=WHICHDAY_OIDC_CLIENT_SECRET
+# The H2 database is a single file only one process may hold open, so this app must never
+# run as two containers. Under the app's own state dir, which means it is backed up and
+# destroyed along with it.
+Volume=/var/app/whichday/data:/app/data
+# -f fails on 4xx and 5xx only, so the OIDC redirect an unauthenticated / answers with
+# counts as healthy.
+HealthCmd=curl -fsS -o /dev/null http://127.0.0.1:8080/ || exit 1
+HealthInterval=15s
+HealthRetries=3
+HealthStartPeriod=60s
+Notify=healthy
+Network=web.network
+
+[Service]
+Restart=always
+# Notify=healthy turns the start timeout into a deadline for the first passing
+# probe, and systemd's 90s default is tight for a JVM cold start — a slow boot
+# would read as a failed start and roll back a perfectly good image.
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target default.target

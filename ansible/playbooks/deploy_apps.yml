@@ -36,9 +36,19 @@
       application_image: docker.io/binarycodes/make-my-nas:latest
       application_port: 8080
       application_domain: nasplan.cloudyhome.org
-      # Probe only; the rest of the health block and the start timeout are role policy.
-      # 127.0.0.1 rather than localhost, which resolves to ::1 where nothing listens.
       application_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
+
+    - role: application
+      application_kind: source
+      application_name: whichday
+      application_enable_units:
+        - whichday.service
+      application_domain: whichday.cloudyhome.org
+      application_data_dirs:
+        - path: data
+          owner: "10001"
+          group: "10001"
+          mode: "0700"
 
     # Host upkeep, not an app: a weekly timer reclaiming the images auto-update leaves
     # untagged. No quadlet/ or config/ of its own, just the two systemd units.
@@ -47,11 +57,6 @@
       application_name: maintenance
       application_enable_units:
         - podman-prune.timer
-
-    - role: application
-      application_state: absent
-      application_kind: simple
-      application_name: whoami
 
   post_tasks:
     # Per-app roles write route snippets but Caddy only applies them on reload,
