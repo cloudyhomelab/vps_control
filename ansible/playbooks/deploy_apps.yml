@@ -19,17 +19,19 @@
 
     - role: application
       application_kind: source
-      application_name: calculators
-      application_enable_units:
-        - calculators.service
-
-    - role: application
-      application_kind: source
       application_name: reverse_proxy
       application_enable_units:
         - caddy.service
 
-    # Deployed after reverse_proxy so caddy.service exists when its route is registered.
+    # Every routed app follows reverse_proxy: registering a route writes into the state
+    # directory caddy.service mounts, so the proxy is converged before anything adds to it.
+    - role: application
+      application_kind: source
+      application_name: calculators
+      application_enable_units:
+        - calculators.service
+      application_domain: calc.cloudyhome.org
+
     - role: application
       application_kind: simple
       application_name: nasplan
