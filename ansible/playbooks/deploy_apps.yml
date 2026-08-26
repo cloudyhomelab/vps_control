@@ -26,11 +26,14 @@
     # Every routed app follows reverse_proxy: registering a route writes into the state
     # directory caddy.service mounts, so the proxy is converged before anything adds to it.
     - role: application
-      application_kind: source
+      application_kind: simple
       application_name: calculators
-      application_enable_units:
-        - calculators.service
+      application_description: Calculators web app
+      application_image: docker.io/binarycodes/calculators:latest
       application_domain: calc.cloudyhome.org
+      application_env:
+        FORWARD_HEADERS_STRATEGY: native
+      application_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
 
     - role: application
       application_kind: simple

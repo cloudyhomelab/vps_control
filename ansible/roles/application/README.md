@@ -232,7 +232,7 @@ where nothing is listening. Leave `application_health_cmd` empty for an app that
 be probed; it then gets no health block and no rollback protection.
 
 `source` apps declare these keys in their own Quadlet files (see
-`apps/calculators/quadlet/calculators.container`), so this policy does not reach them.
+`apps/whichday/quadlet/whichday.container`), so this policy does not reach them.
 
 ## Secrets
 
@@ -373,11 +373,11 @@ A `source` app with a Caddy route:
   roles:
     - role: application
       application_kind: source
-      application_name: calculators
+      application_name: whichday
       application_enable_units:
-        - calculators.service
-      # Optional: route calc.cloudyhome.org -> calculators:8080 via Caddy.
-      application_domain: calc.cloudyhome.org
+        - whichday.service
+      # Optional: route whichday.cloudyhome.org -> whichday:8080 via Caddy.
+      application_domain: whichday.cloudyhome.org
 ```
 
 A `simple` app — one image behind the reverse proxy, no source dir:
