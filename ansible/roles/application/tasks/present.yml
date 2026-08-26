@@ -67,6 +67,7 @@
     group: "{{ application_group }}"
     mode: "{{ application_file_mode }}"
   when: application_kind == 'simple'
+  register: application_quadlet_render
   notify: Reload systemd
 
 # What the last deploy installed, so the files below can be reconciled against it.
@@ -83,6 +84,7 @@
     mode: "{{ application_file_mode }}"
   loop: "{{ application_source_quadlet_files }}"
   when: application_kind == 'source'
+  register: application_quadlet_install
   notify: Reload systemd
 
 - name: "Install systemd units for app {{ application_name }}"
@@ -94,6 +96,7 @@
     mode: "{{ application_file_mode }}"
   loop: "{{ application_source_unit_files }}"
   when: application_kind == 'source'
+  register: application_unit_install
   notify: Reload systemd
 
 - name: "Check for config directory of app {{ application_name }}"
@@ -134,6 +137,7 @@
     - application_kind == 'source'
     - application_config_dir.stat.exists
     - application_config_dir.stat.isdir
+  register: application_config_deploy
 
 # Every host path this deploy just installed: the two flat install dirs by basename,
 # plus the config tree with its relative layout preserved. Derived in one place so the
@@ -328,14 +332,59 @@
 - name: Apply unit changes (systemd daemon-reload)
   ansible.builtin.meta: flush_handlers
 
-# Podman reads a secret when it creates the container, so a rotated value reaches the
-# app only through a new container: 'started' on an already-running unit would report
-# success and keep serving with the old secret.
+# Nothing this deploy wrote is live yet, and the two ways it becomes live differ.
+#
+# A new container is the only way a changed secret or unit definition takes effect: podman
+# reads a secret when it *creates* the container, and the daemon-reload above only
+# regenerates the service file — systemd never acts on a unit it merely re-read, so the
+# container keeps running from the image and options it was created with. 'started' would
+# report success on both and leave the app serving the old ones.
+#
+# Config is different: the file is bind-mounted, so it is already in place and only the
+# process needs telling. Which is why this is not folded into the restart above — an app
+# whose unit declares ExecReload= means it can take config without dropping what it is
+# serving, and cycling it anyway would throw that away.
+#
+# Files removed by the prune are counted only when they were config. A removed unit file
+# leaves nothing to act on; a removed config file is a change to what a still-running app
+# reads.
+- name: "Decide how this deploy reaches the running units of app {{ application_name }}"
+  ansible.builtin.set_fact:
+    application_restart_needed: >-
+      {{ (application_secret_create.changed | default(false))
+         or (application_quadlet_render.changed | default(false))
+         or (application_quadlet_install.changed | default(false))
+         or (application_unit_install.changed | default(false)) }}
+    application_config_changed: >-
+      {{ (application_config_deploy.changed | default(false))
+         or (application_manifest_paths | difference(application_installed_paths)
+             | select('match', application_config_path_prefix) | list | length > 0) }}
+  vars:
+    # Escaped, because it is built from a name and interpolated into a regex.
+    application_config_path_prefix: "{{ (application_app_state_dir ~ '/config/') | regex_escape }}"
+
+# Registered for the reload below: the module returns the unit's `systemctl show`
+# properties, so no separate probe is needed to learn whether it can reload.
 - name: "Start units for app {{ application_name }}"
   ansible.builtin.systemd:
     name: "{{ item }}"
-    state: "{{ 'restarted' if (application_secret_create.changed | default(false)) else 'started' }}"
+    state: "{{ 'restarted' if application_restart_needed | bool else 'started' }}"
   loop: "{{ application_managed_units }}"
+  register: application_start_result
+
+# Skipped when the app was restarted just above, which already picked the config up. An
+# app whose unit has no ExecReload= reports CanReload=no and is restarted instead — the
+# blunt path, but the only one that gets the change into the process.
+- name: "Apply changed config to units of app {{ application_name }}"
+  ansible.builtin.systemd:
+    name: "{{ item.item }}"
+    state: "{{ 'reloaded' if (item.status.CanReload | default('no')) == 'yes' else 'restarted' }}"
+  loop: "{{ application_start_result.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when:
+    - application_config_changed | bool
+    - not application_restart_needed | bool
 
 # Quadlet-generated services live in /run and are "transient or generated",
 # so `systemctl enable` on them fails — boot persistence comes from their

@@ -34,7 +34,9 @@
 # The secret facts are here for the same reason and matter as much: the decrypted values
 # of one app must never be visible to the next, the digest read is skipped for an app with
 # no record, so a stale register would make this app's secrets look already-stored, and a
-# stale create result would restart an app that rotated nothing.
+# stale create result would restart an app that rotated nothing. The install registers are
+# here for that last reason too: each is skipped for the kind — or the app — that does not
+# use it, so one app's file changes would otherwise decide how the next app is reloaded.
 - name: "Reset install path facts for app {{ application_name }}"
   ansible.builtin.set_fact:
     application_manifest_paths: []
@@ -47,6 +49,13 @@
     application_secret_digest_stat: {}
     application_secret_digest_slurp: {}
     application_secret_create: {}
+    application_quadlet_render: {}
+    application_quadlet_install: {}
+    application_unit_install: {}
+    application_config_deploy: {}
+    application_start_result: {}
+    application_restart_needed: false
+    application_config_changed: false
 
 - name: "Deploy app {{ application_name }}"
   ansible.builtin.include_tasks: present.yml

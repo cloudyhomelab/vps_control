@@ -50,7 +50,10 @@ needed. Just give it an image (and usually a domain). The container is named
 2. When `application_domain` is set, writes a Caddy route snippet to the imported
    `conf.d/` directory (see [Caddy routing](#caddy-routing)).
 3. Runs `systemctl daemon-reload` (once, only if anything changed).
-4. Starts and enables the [managed units](#unit-names-and-boot-persistence).
+4. Starts and enables the [managed units](#unit-names-and-boot-persistence), then makes
+   whatever this deploy changed take effect: a **restart** for a changed unit definition
+   or secret, a **reload** for a changed config tree (see
+   [Making changes take effect](#making-changes-take-effect)).
 
 ### `absent`
 
@@ -161,6 +164,45 @@ app (the container *is* `<name>`) and for `source` apps whose `ContainerName=`
 matches the app name. Override it when a `source` app's routable container is
 named differently. On `absent`, the role removes the `<name>.caddy` snippet it
 generated.
+
+## Making changes take effect
+
+Installing a file is not the same as the app running from it, and the two kinds of change
+this role writes become live in different ways.
+
+**A changed unit definition, or a changed secret, needs a new container.** The Quadlet
+generator rewrites the `.service` at `daemon-reload`, but systemd does not act on a unit it
+merely re-read, and podman reads a secret only when it *creates* a container — so the
+running one carries on with the image, options and values it started with. The role
+therefore **restarts** the app's managed units when this deploy changed a file that defines
+them: anything installed from `quadlet/` or `unit/`, or the rendered `<name>.container` of a
+`simple` app.
+
+**A changed config tree only needs the process told.** The files are bind-mounted, so they
+are already in place. The role **reloads** the managed units instead, which is why config
+is not folded in with the above: a unit that declares `ExecReload=` can take new config
+without dropping what it is serving, and cycling it would throw that away. A unit with no
+reload action reports `CanReload=no` and is restarted — blunt, but the only way to get the
+change into the process. Nothing extra to declare per app: the unit already says which it
+is, and the role reads that rather than keeping a second copy of the answer.
+
+A restart supersedes a reload, so a deploy that changed both does one restart. A converge
+that changed neither leaves the units alone, so this costs nothing on a no-op run.
+
+Two consequences worth knowing:
+
+- **A restart does not pull.** The pull policy decides that, and the default only fetches
+  an image that is missing locally, so bumping `Image=` to a tag already on the host
+  reuses it. A new tag or digest is missing by definition and is fetched; a moving tag
+  like `:latest` is not, and needs `podman auto-update` (or `Pull=newer`) to move.
+- **Removed files are treated by kind.** A pruned config file counts as a config change,
+  since a running app is still reading what is now gone. A pruned unit file does not — it
+  leaves nothing to act on, and a unit dropped from the app keeps running until it is
+  stopped by hand (see [install manifest](#install-manifest)).
+
+Generated route snippets are not part of any app's config tree, so they are outside this
+entirely; the deploy playbook applies those centrally once every app has converged (see
+[Caddy routing](#caddy-routing)).
 
 ## Healthchecks and auto-update rollback
 
