@@ -1,0 +1,25 @@
+name: Podman Auto-Update
+
+# Manual only. The host checks the registry on its own timer (the podman-auto-update.timer
+# drop-in the deploy playbook installs); this is the out-of-band pull, for when a freshly
+# pushed image should land now rather than at the next window.
+on:
+  workflow_dispatch:
+
+# Shares the deploy's concurrency group: this restarts containers, so it must not run
+# inside a converge or a package update. See deploy-application.yml for why these queue
+# instead of cancelling.
+concurrency:
+  group: vps-converge
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # No lint gate, unlike the deploy: nothing triggers this but a person choosing a ref.
+  auto-update:
+    uses: ./.github/workflows/ansible-run.yml
+    with:
+      playbook: playbooks/podman_auto_update.yml
+    secrets: inherit

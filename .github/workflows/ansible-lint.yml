@@ -52,7 +52,7 @@ jobs:
         working-directory: ansible
         run: |
           # -i only silences the empty-inventory warning; a syntax check never connects.
-          ansible-playbook -i localhost, --syntax-check playbooks/deploy_apps.yml playbooks/update_packages.yml
+          ansible-playbook -i localhost, --syntax-check playbooks/deploy_apps.yml playbooks/update_packages.yml playbooks/podman_auto_update.yml
 
       # Lints every YAML file in the tree, dynamically included task files included.
       - name: Lint

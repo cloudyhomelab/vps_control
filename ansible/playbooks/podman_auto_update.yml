@@ -1,0 +1,25 @@
+---
+- name: Refresh containers marked AutoUpdate=registry
+  hosts: all
+  become: true
+  # Nothing here reads a fact, and skipping the gather keeps an on-demand pull quick.
+  gather_facts: false
+
+  tasks:
+    # The same command the host's podman-auto-update.timer runs, invoked directly rather
+    # than by starting that unit so the per-container verdict table lands in the run log
+    # instead of only in the host journal.
+    - name: Run podman auto-update
+      ansible.builtin.command: podman auto-update
+      register: podman_auto_update
+      # The UPDATED column is 'false' for every container already on the newest digest,
+      # so a line that ends in anything else — true, pending, rolled back, failed — is
+      # the one thing that happened on the host.
+      changed_when: podman_auto_update.stdout_lines[1:] | reject('search', 'false\s*$') | list | length > 0
+      # Quotes the table into the GitHub job summary (see callback_plugins/github_summary.py),
+      # so the verdict is on the run page rather than only inside the task log.
+      tags: summary
+
+    - name: Print the auto-update result
+      ansible.builtin.debug:
+        msg: "{{ podman_auto_update.stdout_lines | default(['No containers are marked AutoUpdate=registry.']) }}"
