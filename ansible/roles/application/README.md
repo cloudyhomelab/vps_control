@@ -43,10 +43,11 @@ needed. Just give it an image (and usually a domain). The container is named
 1. **`simple`**: renders `<name>.container` to `/etc/containers/systemd/`.
    **`source`**: copies `<app>/quadlet/*` there and `<app>/unit/*` to
    `/etc/systemd/system/`, then copies `<app>/config/` to `/var/app/<app>/config/`.
-   All three sets of installed host paths are recorded in an
+   Either way, every host path installed is recorded in an
    [install manifest](#install-manifest); anything the previous deploy recorded and
    this one no longer installs (a renamed or deleted file, in `config/` as much as in
-   `quadlet/`) is removed from the host.
+   `quadlet/`, or a file belonging to the kind the app has just stopped being) is
+   removed from the host.
 2. When `application_domain` is set, writes a Caddy route snippet to the imported
    `conf.d/` directory (see [Caddy routing](#caddy-routing)).
 3. Runs `systemctl daemon-reload` (once, only if anything changed).
@@ -59,9 +60,9 @@ needed. Just give it an image (and usually a domain). The container is named
 
 1. Stops the managed units (a Quadlet service's `ExecStopPost` also removes its
    container).
-2. Removes the app's Quadlet from the host — the rendered `<name>.container`
-   (`simple`) or exactly the paths in the app's [install manifest](#install-manifest)
-   (`source`) — and the `<name>.caddy` route snippet.
+2. Removes exactly the paths in the app's [install manifest](#install-manifest) — its
+   Quadlet files, plain systemd units and config tree — and the `<name>.caddy` route
+   snippet.
 3. Removes `/var/app/<app>` entirely: its deployed config and any data a Quadlet
    bind-mounts under it.
 4. Removes the app's podman secrets, by the names recorded in
@@ -127,9 +128,10 @@ and prune every file the last one recorded (see [install manifest](#install-mani
 
 ## Install manifest
 
-A `source` deploy records the absolute host paths it installed to
-`/var/app/<app>/.install-manifest`, one per line — Quadlet files, systemd units, and
-every file of the config tree. It sits inside the app's own state dir so the two share
+A deploy records the absolute host paths it installed to
+`/var/app/<app>/.install-manifest`, one per line — a `source` app's Quadlet files,
+systemd units and every file of its config tree, a `simple` app's one rendered
+`<name>.container`. It sits inside the app's own state dir so the two share
 fate: `absent` drops that tree and the manifest goes with it, and a hand-removed or
 restored `/var/app/<app>` cannot leave a stale record behind. Both a later deploy and a decommission work from that
 file rather than re-deriving from `apps/<app>/`, which by then may name different files
@@ -148,6 +150,15 @@ every other app and cannot be relocated — systemd and the Quadlet generator on
 those paths. Dropping `/var/app/<app>` alone would leave them behind, and the generator
 would recreate the service on the next `daemon-reload`.
 
+**Changing an app's kind converges on it.** Both kinds record a manifest and both
+reconcile against it, so flipping `application_kind` between `source` and `simple` —
+keeping the name — prunes whatever the old kind installed and the new one does not. A
+`source` app that shipped a sidecar Quadlet, a `.timer` and a config tree becomes a
+`simple` app whose only installed path is the rendered `<name>.container`, and the other
+three are removed on that converge. The one thing to do by hand is the running units: a
+unit whose file is pruned keeps running until it is stopped or the host reboots (see
+below), so stop the ones the app no longer ships, once.
+
 Why a manifest and not a destination diff: `/var/app/reverse_proxy/config/` also holds
 `conf.d/*.caddy` route snippets generated for *other* apps, which exist nowhere in the
 source tree. Deleting whatever is not in `apps/<app>/config/` would wipe every route on
@@ -156,7 +167,13 @@ so generated and runtime files are invisible to it.
 
 Only files are reconciled — a pruned tree can leave empty directories behind. And a unit
 dropped from the app that is still running keeps running until it is stopped or the host
-reboots: remove it from `application_enable_units` and stop it once by hand.
+reboots: remove it from `application_enable_units` and stop it once by hand. That applies
+to a change of kind as much as to a deleted file.
+
+An app last deployed before the role recorded a manifest for its kind has none, so its
+first converge under this role prunes nothing and records one — the reconciliation starts
+from the next deploy. `absent` covers the gap for a `simple` app in that state by also
+removing the rendered `<name>.container` by name.
 
 ## Caddy routing
 

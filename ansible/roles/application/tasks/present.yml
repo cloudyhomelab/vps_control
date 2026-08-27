@@ -70,10 +70,12 @@
   register: application_quadlet_render
   notify: Reload systemd
 
-# What the last deploy installed, so the files below can be reconciled against it.
+# What the last deploy installed, so the files below can be reconciled against it. Read
+# for either kind, and that is what makes a change of kind converge: the paths recorded
+# by a 'source' deploy are exactly what the 'simple' one it became has to prune, and the
+# other way round.
 - name: "Read recorded install manifest for app {{ application_name }}"
   ansible.builtin.include_tasks: read-manifest.yml
-  when: application_kind == 'source'
 
 - name: "Install Quadlet files for app {{ application_name }}"
   ansible.builtin.copy:
@@ -132,40 +134,54 @@
     mode: "{{ application_file_mode }}"
     directory_mode: "{{ application_dir_mode }}"
   when:
-    # Shipping files from the repo is what makes an app 'source'. A 'simple' app has no
-    # manifest, so config copied for one would never be pruned when it changed.
+    # Shipping files from the repo is what makes an app 'source'; a 'simple' app is
+    # defined entirely at the call site and has no config tree to copy.
     - application_kind == 'source'
     - application_config_dir.stat.exists
     - application_config_dir.stat.isdir
   register: application_config_deploy
 
-# Every host path this deploy just installed: the two flat install dirs by basename,
-# plus the config tree with its relative layout preserved. Derived in one place so the
-# prune below and the recorded manifest cannot disagree about the set.
+# Every host path this deploy just installed. For 'source': the two flat install dirs by
+# basename, plus the config tree with its relative layout preserved. For 'simple': the one
+# rendered Quadlet. Derived in one place so the prune below and the recorded manifest
+# cannot disagree about the set.
+#
+# The generated Caddy route is deliberately not in here. It lives in the reverse proxy's
+# config tree rather than this app's, so it is outside what the manifest allowlist admits,
+# and absent.yml removes it by name instead.
 - name: "Collect installed paths for app {{ application_name }}"
   ansible.builtin.set_fact:
     application_installed_paths: >-
+      {{ application_simple_installed_paths if application_kind == 'simple'
+         else application_source_installed_paths }}
+  vars:
+    application_simple_installed_paths:
+      - "{{ application_system_dir }}/{{ application_name }}.container"
+    application_source_installed_paths: >-
       {{ ([application_system_dir] | product(application_source_quadlet_files | map('basename') | list) | map('join', '/') | list)
          + ([application_unit_dir] | product(application_source_unit_files | map('basename') | list) | map('join', '/') | list)
          + ([application_app_state_dir ~ '/config'] | product(application_config_found.files | default([])
             | map(attribute='path') | map('relpath', application_source_config_dir) | list) | map('join', '/') | list) }}
-  when: application_kind == 'source'
 
-# Files the last deploy installed that this one does not: renamed, or dropped from the
-# app's source tree. Left behind they are still live host state — the Quadlet generator
-# keeps making services from stale unit files, and stale config keeps being mounted.
-# Pruned after the installs above, so the app is never left without its files.
+# Files the last deploy installed that this one does not: renamed, dropped from the app's
+# source tree, or belonging to the kind the app has just stopped being. Left behind they
+# are still live host state — the Quadlet generator keeps making services from stale unit
+# files, and stale config keeps being mounted. Pruned after the installs above, so the app
+# is never left without its files.
+#
+# A unit whose file is pruned while it is running keeps running until it is stopped or the
+# host reboots, so converting an app that shipped several units means stopping the ones it
+# no longer ships by hand, once. See README.
 - name: "Remove files no longer installed by app {{ application_name }}"
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
   loop: "{{ application_manifest_paths | difference(application_installed_paths) }}"
-  when: application_kind == 'source'
   notify: Reload systemd
 
-# The config copy above creates this, but only for an app that ships a config tree. A
-# 'simple' app needs it as soon as it owns host state of its own: a bind-mounted data
-# directory below it, or the digests recording which secrets it last stored.
+# The config copy above creates this, but only for an app that ships a config tree. Every
+# app owns host state below it regardless: the install manifest recorded just below, and
+# for some also a bind-mounted data directory or the digests of the secrets it last stored.
 - name: "Ensure state directory exists for app {{ application_name }}"
   ansible.builtin.file:
     path: "{{ application_app_state_dir }}"
@@ -173,21 +189,16 @@
     owner: "{{ application_owner }}"
     group: "{{ application_group }}"
     mode: "{{ application_dir_mode }}"
-  when: >-
-    application_kind == 'source'
-    or application_data_dirs | length > 0
-    or application_secret_values | length > 0
 
 # Written last: a failure part-way through the install leaves the older, wider
 # manifest in place, so the next run still knows about every file on the host.
 - name: "Record install manifest for app {{ application_name }}"
   ansible.builtin.template:
-    src: source-manifest.j2
+    src: install-manifest.j2
     dest: "{{ application_manifest_file }}"
     owner: "{{ application_owner }}"
     group: "{{ application_group }}"
     mode: "{{ application_file_mode }}"
-  when: application_kind == 'source'
 
 # Bind-mount targets the app itself writes to, named relative to the app's state dir.
 # Podman creates a missing host path as root:root, which an unprivileged container cannot

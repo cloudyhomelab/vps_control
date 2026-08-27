@@ -31,10 +31,12 @@ application_config_root: /var/app                 # config lands in {{ root }}/{
 # wholesale on absent, so back the app up before decommissioning it.
 application_app_state_dir: "{{ application_config_root }}/{{ application_name }}"
 
-# Where a 'source' app records the host paths it installed — Quadlet files, systemd
-# units and config tree alike. Both a later deploy (to drop files it no longer
-# installs) and decommission read this manifest instead of re-deriving from the
-# controller's apps/<name>/ tree, which by then may name different files or be gone.
+# Where an app records the host paths it installed — a 'source' app's Quadlet files,
+# systemd units and config tree, a 'simple' app's one rendered Quadlet. Both a later
+# deploy (to drop files it no longer installs) and decommission read this manifest
+# instead of re-deriving from the controller's apps/<name>/ tree, which by then may name
+# different files or be gone. Recorded for both kinds so that converting an app from one
+# to the other reconciles: what the old kind installed is what the new kind prunes.
 #
 # It lives inside the app's own state dir so the two share fate: the absent path drops
 # that whole tree, which takes the manifest with it, and a hand-removed or restored

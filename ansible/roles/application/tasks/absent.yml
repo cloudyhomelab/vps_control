@@ -3,15 +3,13 @@
 # Quadlet files, plain systemd units, its config/data directory, and its Caddy route.
 # This is destructive and not reversible; back the app up before setting state=absent.
 #
-# The install dirs are shared with every other app, so what gets removed there is
-# gated on application_kind:
-#   simple -> the rendered <name>.container.
-#   source -> exactly the files recorded in the host install manifest by the last
-#             deploy, so teardown needs no controller-side apps/<name>/ tree.
-# {{ application_app_state_dir }} is this app's alone, so it goes wholesale for both
-# kinds. Podman named volumes and networks declared by an app's Quadlet files are NOT
-# removed — they outlive the units that created them, and Caddy's TLS certificates live
-# in one. Remove those by hand (`podman volume rm`) once you are sure.
+# The install dirs are shared with every other app, so nothing there is removed by
+# pattern: what goes is exactly the set of paths the last deploy recorded in the host
+# install manifest, whichever kind wrote it. Teardown therefore needs no controller-side
+# apps/<name>/ tree at all. {{ application_app_state_dir }} is this app's alone, so it
+# goes wholesale. Podman named volumes and networks declared by an app's Quadlet files
+# are NOT removed — they outlive the units that created them, and Caddy's TLS
+# certificates live in one. Remove those by hand (`podman volume rm`) once you are sure.
 
 # Stop while the generated units still exist; stopping a Quadlet service also
 # removes its container (ExecStopPost). Tolerate a unit that was never deployed
@@ -27,6 +25,10 @@
     - "'not loaded' not in (application_stop_result.msg | default('') | lower)"
     - "'could not find' not in (application_stop_result.msg | default('') | lower)"
 
+# Kept alongside the manifest removal below, rather than folded into it: a 'simple' app
+# last deployed before the role recorded manifests for that kind has none, and its
+# rendered Quadlet would otherwise be left behind on the host forever. Removing a path
+# that is already gone is a no-op, so the overlap costs nothing.
 - name: "Remove rendered Quadlet for container {{ application_name }}"
   ansible.builtin.file:
     path: "{{ application_system_dir }}/{{ application_name }}.container"
@@ -36,14 +38,12 @@
 
 - name: "Read recorded install manifest for app {{ application_name }}"
   ansible.builtin.include_tasks: read-manifest.yml
-  when: application_kind == 'source'
 
 - name: "Remove installed files for app {{ application_name }}"
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
   loop: "{{ application_manifest_paths }}"
-  when: application_kind == 'source'
   notify: Reload systemd
 
 # Which secrets this app owns, from the record the last deploy wrote. Read before the

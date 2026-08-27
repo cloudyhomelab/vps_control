@@ -1,8 +1,10 @@
 ---
-# Loads the host paths recorded by the last deploy of a 'source' app into
-# application_manifest_paths, leaving it at the empty default from main.yml when the
-# app has no manifest here. Included by present.yml, which prunes the recorded paths
-# it no longer installs, and by absent.yml, which removes all of them.
+# Loads the host paths recorded by the last deploy into application_manifest_paths,
+# leaving it at the empty default from main.yml when the app has no manifest here — a new
+# app, or one last deployed before the role recorded a manifest for its kind. Included by
+# present.yml, which prunes the recorded paths it no longer installs, and by absent.yml,
+# which removes all of them. Read for either kind, so the record a 'source' deploy wrote
+# is still what gets reconciled after the app is converted to 'simple', and vice versa.
 
 - name: "Stat install manifest for app {{ application_name }}"
   ansible.builtin.stat:
