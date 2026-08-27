@@ -47,12 +47,15 @@
         path: /var/run/reboot-required
       register: reboot_required_file
 
-    # The only record in the run output that a reboot happened this week — the recap
-    # the github_summary callback writes does not name individual tasks.
+    # The record that a reboot happened this week: the 'summary' tag puts this notice on
+    # the run page (see callback_plugins/github_summary.py), which the recap alone cannot
+    # say — it counts tasks without naming them. Conditional, so the notice shows up in
+    # the summary of the runs that rebooted and in no others.
     - name: Notify that a reboot is needed
       ansible.builtin.debug:
         msg: "NOTICE: a reboot is required on {{ inventory_hostname }} — rebooting now."
       when: reboot_required_file.stat.exists
+      tags: summary
 
     # Unattended on purpose: leaving a kernel unapplied on an internet-facing host is
     # worse than a minute of downtime inside the weekly window, and every container
