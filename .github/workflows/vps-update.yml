@@ -5,7 +5,7 @@ on:
     # Every Sunday at 02:00 UTC. Reboots inside that window when the update needs one,
     # so a kernel does not sit unapplied on an internet-facing host.
     - cron: '0 2 * * 0'
-  workflow_dispatch:  # Manual run — same behaviour as the schedule
+  workflow_dispatch:
 
 # Shares the deploy's concurrency group: an upgrade-and-reboot must never land in the
 # middle of a converge. See deploy-application.yml for why these queue instead of
@@ -19,8 +19,6 @@ permissions:
   contents: read
 
 jobs:
-  # No lint gate, unlike the deploy: a lint failure must not hold up a security patch,
-  # and what runs here is whatever already landed on the default branch.
   update-packages:
     uses: ./.github/workflows/ansible-run.yml
     with:

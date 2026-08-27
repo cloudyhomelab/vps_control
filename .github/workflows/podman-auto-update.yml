@@ -17,7 +17,6 @@ permissions:
   contents: read
 
 jobs:
-  # No lint gate, unlike the deploy: nothing triggers this but a person choosing a ref.
   auto-update:
     uses: ./.github/workflows/ansible-run.yml
     with:

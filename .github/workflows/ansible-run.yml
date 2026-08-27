@@ -51,15 +51,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Nothing installs Ansible: the runner image ships ansible-core with the full
-      # community collection bundle in one pipx venv, and ansible-core scans sys.path for
-      # collections, so community.sops resolves out of that venv with nothing downloaded.
-      #
-      # This step stays as the seam. It makes no network call while the image satisfies
-      # requirements.yml; it installs into ~/.ansible/collections — which takes precedence
-      # over the bundle — should an image ever ship below the floor declared there; and if
-      # a future image drops Ansible altogether it fails here, before the first SSH,
-      # instead of part-way through a converge.
       - name: Install any Ansible collection the runner image lacks
         working-directory: ansible
         run: ansible-galaxy collection install -r requirements.yml
