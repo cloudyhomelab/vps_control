@@ -10,6 +10,15 @@ on:
       - 'ansible/roles/application/**'
       - 'ansible/requirements.yml'
 
+# One Ansible run against the VPS at a time. The group name is shared with the weekly
+# package update rather than scoped to this workflow, because the two drive the same host
+# and that one reboots it. Queued, not cancelled: interrupting ansible-playbook part-way
+# leaves the host half-converged, and GitHub keeps only the newest pending run — which is
+# what a converge wants, since the later commit supersedes the earlier one anyway.
+concurrency:
+  group: vps-converge
+  cancel-in-progress: false
+
 permissions:
   contents: read
 

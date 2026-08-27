@@ -34,6 +34,10 @@ on:
       SOPS_AGE_KEY:
         required: false
 
+# Deliberately no concurrency group of its own. A reusable workflow that names the same
+# group as the caller waiting on it deadlocks, and serializing host access is the caller's
+# job — every caller of this must set the shared vps-converge group.
+#
 # Least privilege: this workflow only reads the repo and deploys over SSH.
 permissions:
   contents: read

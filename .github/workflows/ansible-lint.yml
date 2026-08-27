@@ -10,6 +10,15 @@ on:
       - '.github/workflows/ansible-lint.yml'
   workflow_dispatch:
 
+# A superseded PR push is worth cancelling: this touches no host and only the newest
+# commit's verdict matters. Not cancelled for a push to main, where this gates a deploy
+# and killing it would fail the run that is converging. github.workflow is in the group
+# so a called run — named after its caller — cannot cancel a PR's own lint, and so
+# neither can collide with the vps-converge group and deadlock waiting on its caller.
+concurrency:
+  group: ansible-lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 

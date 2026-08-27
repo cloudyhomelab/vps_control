@@ -7,6 +7,13 @@ on:
     - cron: '0 2 * * 0'
   workflow_dispatch:  # Manual run — same behaviour as the schedule
 
+# Shares the deploy's concurrency group: an upgrade-and-reboot must never land in the
+# middle of a converge. See deploy-application.yml for why these queue instead of
+# cancelling.
+concurrency:
+  group: vps-converge
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
