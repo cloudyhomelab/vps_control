@@ -177,19 +177,36 @@ class CallbackModule(CallbackBase):
     def _output_message(result):
         # stdout for a command, msg for a debug — whose msg may be a list of lines.
         for key in ("stdout", "msg", "stderr"):
-            value = result.get(key)
+            value = CallbackModule._as_text(result.get(key))
             if value:
-                if isinstance(value, list):
-                    return "\n".join(str(line) for line in value)
-                return value if isinstance(value, str) else str(value)
+                return value
         return ""
 
     @staticmethod
     def _error_message(result):
-        # Prefer the explicit msg; fall back to stderr/stdout/reason so a failure is
-        # never reported with an empty body.
-        for key in ("msg", "stderr", "stdout", "reason"):
-            value = result.get(key)
-            if value:
-                return value if isinstance(value, str) else str(value)
-        return ""
+        # msg first, then stderr: a module's msg can be generic ("The command exited with
+        # a non-zero return code") and the command's own stderr is the part that says why,
+        # so keep both rather than stopping at the first non-empty field. stdout/reason
+        # remain a fallback, so a failure is never reported with an empty body.
+        parts = []
+        for key in ("msg", "stderr"):
+            value = CallbackModule._as_text(result.get(key)).strip()
+            if value and value not in parts:
+                parts.append(value)
+        if not parts:
+            for key in ("stdout", "reason"):
+                value = CallbackModule._as_text(result.get(key)).strip()
+                if value:
+                    parts.append(value)
+                    break
+        return "\n\n".join(parts)
+
+    @staticmethod
+    def _as_text(value):
+        if not value:
+            return ""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, list):
+            return "\n".join(str(line) for line in value)
+        return str(value)
