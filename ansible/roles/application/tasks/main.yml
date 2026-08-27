@@ -24,12 +24,49 @@
       a 'simple' app being deployed (state=present) also requires 'application_image'.
     quiet: true
 
+# A 'source' app installs from this directory, and every variable that reads it
+# (application_source_quadlet_files and its two siblings) is a fileglob, which returns an
+# empty list for a path that is not there rather than failing. So a wrong
+# application_apps_dir installs nothing and still reports success — and worse, on an app
+# already deployed, present.yml reads that empty set as "the app has stopped shipping
+# these files" and prunes every path the last deploy recorded. Checked here, before
+# either can happen.
+#
+# Only on the present path: a decommission works from the manifest on the host alone, so
+# it has to keep working once the app's source tree is gone.
+- name: "Verify source directory of app {{ application_name }}"
+  when:
+    - application_kind == 'source'
+    - application_state == 'present'
+  block:
+    - name: "Stat source directory of app {{ application_name }}"
+      ansible.builtin.stat:
+        path: "{{ application_apps_dir }}/{{ application_name }}"
+      delegate_to: localhost
+      become: false
+      register: application_source_dir_stat
+
+    - name: "Refuse a source app with no source directory: {{ application_name }}"
+      ansible.builtin.assert:
+        that:
+          - application_source_dir_stat.stat.exists
+          - application_source_dir_stat.stat.isdir
+        fail_msg: >-
+          'source'-kind app {{ application_name }} has no directory at
+          {{ application_apps_dir }}/{{ application_name }}. Deploying it would install
+          nothing and still report success, and on an app already on the host it would
+          remove every file the last deploy installed. Check application_apps_dir: its
+          default is relative to the invoked playbook's own location, so it moves when
+          the playbook does.
+        quiet: true
+
 # Facts and registers both persist for the rest of the play, and this role runs once
 # per app, so everything path-shaped is cleared here — an app must never inherit
 # another app's paths from an earlier invocation in the same run, least of all into a
 # task that deletes them. application_config_found is included because its `find` is
 # skipped for apps with no config tree, which would otherwise leave the previous app's
-# file list standing.
+# file list standing. application_source_dir_stat has already been consumed by the assert
+# above, and is cleared all the same, so nothing added later can read another app's result.
 #
 # The secret facts are here for the same reason and matter as much: the decrypted values
 # of one app must never be visible to the next, the digest read is skipped for an app with
@@ -41,6 +78,7 @@
   ansible.builtin.set_fact:
     application_manifest_paths: []
     application_installed_paths: []
+    application_source_dir_stat: {}
     application_config_found: {}
     application_secrets_stat: {}
     application_secret_load: {}

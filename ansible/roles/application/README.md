@@ -118,6 +118,13 @@ duplicates per week.
 | `application_config_root` | `/var/app`                   | Config root → `<root>/<app>/config`.     |
 | `application_caddy_confd` | `/var/app/reverse_proxy/config/conf.d` | Dir for generated route snippets. |
 
+`application_apps_dir` follows the location of the playbook you invoke, so it moves
+when the playbook does. A `source` app whose directory is not there fails the run
+before anything is installed, rather than being treated as an app that ships no
+files: the lookups that read the directory are globs and return nothing for a path
+that does not exist, so a deploy would otherwise install nothing, report success,
+and prune every file the last one recorded (see [install manifest](#install-manifest)).
+
 ## Install manifest
 
 A `source` deploy records the absolute host paths it installed to
