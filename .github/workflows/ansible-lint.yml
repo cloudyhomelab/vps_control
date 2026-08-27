@@ -31,14 +31,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # ansible-lint depends on ansible-core, so this also provides the
-      # ansible-playbook used by the syntax check below.
+      # Injected into the image's own ansible-core venv rather than pip-installed beside
+      # it, so the lint and the syntax check below run against the very ansible-core and
+      # bundled collections a deploy will use — instead of the second, collection-less
+      # core that pip drags in as an ansible-lint dependency. --include-apps is what puts
+      # the ansible-lint entry point on PATH.
       - name: Install ansible-lint
-        run: |
-          pip install --upgrade pip
-          pip install ansible-lint
+        run: pipx inject ansible-core ansible-lint --include-apps
 
-      - name: Install Ansible collections
+      # Same seam as the deploy, for the same reason (see ansible-run.yml). Needed here
+      # too, and not only inside ansible-lint: the syntax check below resolves modules on
+      # its own, without ansible-lint's private collection cache.
+      - name: Install any Ansible collection the runner image lacks
         working-directory: ansible
         run: ansible-galaxy collection install -r requirements.yml
 
