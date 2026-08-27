@@ -1,10 +1,18 @@
 ---
-# Collections the playbooks need beyond ansible-core, installed by CI before both the
-# lint job and the deploy (`ansible-galaxy collection install -r requirements.yml`).
+# Collections the playbooks need beyond ansible-core. CI normally installs nothing: the
+# runner image ships the whole community bundle in the same pipx venv as ansible-core,
+# and ansible-core scans sys.path for collections, so this resolves out of that venv.
+# The workflows still run `ansible-galaxy collection install -r requirements.yml`, which
+# costs nothing when the image already satisfies the floor below and repairs the gap when
+# it does not. See .github/workflows/ansible-run.yml.
 #
-# Unpinned on purpose: Dependabot does not track Galaxy, so a pin here would be a
-# version nobody updates. The one collection in use is a thin wrapper around the sops
-# CLI — which *is* pinned, in the workflow that installs it.
+# A floor rather than an exact pin: Dependabot tracks neither, but a floor names the
+# oldest release the playbooks actually work with and so only moves when they need
+# something newer, whereas a pin would be a version nobody updates. The sops CLI itself
+# *is* pinned, in the workflow that installs it.
 collections:
   # Decrypts the SOPS-encrypted app secrets during a deploy. See ansible/SECRETS.md.
+  # 2.3.0 is where load_vars gained return_method, which the application role sets so
+  # what it returns does not shift with the controller's ansible-core version.
   - name: community.sops
+    version: ">=2.3.0"
