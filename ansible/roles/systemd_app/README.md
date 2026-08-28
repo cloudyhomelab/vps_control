@@ -1,10 +1,10 @@
-# application
+# systemd_app
 
 Deploys (or decommissions) a **single** app behind the reverse proxy, plus an
 optional Caddy route. Invoke it once per app. Two required selectors drive it:
 
-- **`application_kind`** — `source` or `simple` (see below). **Required, no default.**
-- **`application_state`** — `present` (default) deploys; `absent` decommissions.
+- **`systemd_app_kind`** — `source` or `simple` (see below). **Required, no default.**
+- **`systemd_app_state`** — `present` (default) deploys; `absent` decommissions.
 
 ## Kinds
 
@@ -33,7 +33,7 @@ Each subdirectory is optional — an app may ship only a Quadlet, only config, e
 For the common "one image behind the reverse proxy" case, the role renders a
 single `<name>.container` Quadlet from inline parameters — no source directory
 needed. Just give it an image (and usually a domain). The container is named
-`<application_name>`, joins `application_network`, and is auto-updated
+`<systemd_app_name>`, joins `systemd_app_network`, and is auto-updated
 (`AutoUpdate=registry`).
 
 ## What it does
@@ -48,7 +48,7 @@ needed. Just give it an image (and usually a domain). The container is named
    this one no longer installs (a renamed or deleted file, in `config/` as much as in
    `quadlet/`, or a file belonging to the kind the app has just stopped being) is
    removed from the host.
-2. When `application_domain` is set, writes a Caddy route snippet to the imported
+2. When `systemd_app_domain` is set, writes a Caddy route snippet to the imported
    `conf.d/` directory (see [Caddy routing](#caddy-routing)).
 3. Runs `systemctl daemon-reload` (once, only if anything changed).
 4. Starts and enables the [managed units](#unit-names-and-boot-persistence), then makes
@@ -86,30 +86,30 @@ duplicates per week.
 
 | Param                      | Required        | Purpose                                                       |
 | -------------------------- | --------------- | ------------------------------------------------------------- |
-| `application_kind`         | yes             | `source` (files from a dir) or `simple` (rendered container). |
-| `application_name`         | yes             | `source`: app dir name. `simple`: container name / DNS name.  |
-| `application_state`        | no              | `present` (default) deploys; `absent` decommissions.          |
-| `application_enable_units` | no              | systemd unit names to enable and start (see below).           |
-| `application_domain`       | no              | Public hostname; when set, a Caddy route is added.            |
-| `application_upstream`     | no              | Upstream container name to proxy to (default `application_name`). |
-| `application_port`         | no              | Upstream port for the Caddy route (default `8080`).           |
-| `application_data_dirs`    | no              | Bind-mount dirs to pre-create with a given owner (see below). |
+| `systemd_app_kind`         | yes             | `source` (files from a dir) or `simple` (rendered container). |
+| `systemd_app_name`         | yes             | `source`: app dir name. `simple`: container name / DNS name.  |
+| `systemd_app_state`        | no              | `present` (default) deploys; `absent` decommissions.          |
+| `systemd_app_enable_units` | no              | systemd unit names to enable and start (see below).           |
+| `systemd_app_domain`       | no              | Public hostname; when set, a Caddy route is added.            |
+| `systemd_app_upstream`     | no              | Upstream container name to proxy to (default `systemd_app_name`). |
+| `systemd_app_port`         | no              | Upstream port for the Caddy route (default `8080`).           |
+| `systemd_app_data_dirs`    | no              | Bind-mount dirs to pre-create with a given owner (see below). |
 
 ### `simple`-kind parameters
 
 | Param                       | Required             | Purpose                                            |
 | --------------------------- | -------------------- | -------------------------------------------------- |
-| `application_image`         | yes (simple+present) | Full image ref, e.g. `docker.io/org/app:latest`.   |
-| `application_description`   | no                   | Unit description (default `<name> container`).     |
-| `application_network`       | no                   | Network the container joins (default `web.network`). |
-| `application_env`           | no                   | Env vars rendered as `Environment=` lines.         |
-| `application_volumes`       | no                   | Raw `Volume=` values.                              |
-| `application_publish_ports` | no                   | Raw `PublishPort=` values.                         |
-| `application_container_options` | no               | Raw lines for the `[Container]` section.           |
-| `application_service_options` | no                 | Raw lines for the `[Service]` section.            |
-| `application_health_cmd`    | no                   | Probe command; enables the health block (see below). |
+| `systemd_app_image`         | yes (simple+present) | Full image ref, e.g. `docker.io/org/app:latest`.   |
+| `systemd_app_description`   | no                   | Unit description (default `<name> container`).     |
+| `systemd_app_network`       | no                   | Network the container joins (default `web.network`). |
+| `systemd_app_env`           | no                   | Env vars rendered as `Environment=` lines.         |
+| `systemd_app_volumes`       | no                   | Raw `Volume=` values.                              |
+| `systemd_app_publish_ports` | no                   | Raw `PublishPort=` values.                         |
+| `systemd_app_container_options` | no               | Raw lines for the `[Container]` section.           |
+| `systemd_app_service_options` | no                 | Raw lines for the `[Service]` section.            |
+| `systemd_app_health_cmd`    | no                   | Probe command; enables the health block (see below). |
 
-`application_env` values are quoted and escaped into the unit, so a value with spaces, a
+`systemd_app_env` values are quoted and escaped into the unit, so a value with spaces, a
 `"` or a `%` needs nothing special at the call site (systemd splits `Environment=` on
 whitespace and reads `%` as a specifier, so a bare value would otherwise be truncated or
 mangled). Keys have to spell legal variable names — letters, digits and underscore, no
@@ -122,13 +122,13 @@ line per list entry, which is why an entry may not contain a newline of its own.
 
 | Variable                  | Default                      | Purpose                                  |
 | ------------------------- | ---------------------------- | ---------------------------------------- |
-| `application_apps_dir`    | `{{ playbook_dir }}/../apps` | Source of `source`-kind app definitions. |
-| `application_system_dir`  | `/etc/containers/systemd`    | Quadlet install dir on the host.         |
-| `application_unit_dir`    | `/etc/systemd/system`        | Plain-unit install dir on the host.      |
-| `application_config_root` | `/var/app`                   | Config root → `<root>/<app>/config`.     |
-| `application_caddy_confd` | `/var/app/reverse_proxy/config/conf.d` | Dir for generated route snippets. |
+| `systemd_app_apps_dir`    | `{{ playbook_dir }}/../apps` | Source of `source`-kind app definitions. |
+| `systemd_app_system_dir`  | `/etc/containers/systemd`    | Quadlet install dir on the host.         |
+| `systemd_app_unit_dir`    | `/etc/systemd/system`        | Plain-unit install dir on the host.      |
+| `systemd_app_config_root` | `/var/app`                   | Config root → `<root>/<app>/config`.     |
+| `systemd_app_caddy_confd` | `/var/app/reverse_proxy/config/conf.d` | Dir for generated route snippets. |
 
-`application_apps_dir` follows the location of the playbook you invoke, so it moves
+`systemd_app_apps_dir` follows the location of the playbook you invoke, so it moves
 when the playbook does. A `source` app whose directory is not there fails the run
 before anything is installed, rather than being treated as an app that ships no
 files: the lookups that read the directory are globs and return nothing for a path
@@ -149,7 +149,7 @@ decommission needs no source tree at all.
 
 The manifest is host state acted on as root, so every recorded path is checked before
 anything is removed. A line is legal in exactly two shapes: a single path segment
-directly inside `application_system_dir` / `application_unit_dir`, or any file nested
+directly inside `systemd_app_system_dir` / `systemd_app_unit_dir`, or any file nested
 under this app's own `/var/app/<app>/config`. `.` and `..` segments are refused in both,
 and a manifest containing one illegal line fails the run without deleting anything.
 
@@ -160,7 +160,7 @@ those paths. Dropping `/var/app/<app>` alone would leave them behind, and the ge
 would recreate the service on the next `daemon-reload`.
 
 **Changing an app's kind converges on it.** Both kinds record a manifest and both
-reconcile against it, so flipping `application_kind` between `source` and `simple` —
+reconcile against it, so flipping `systemd_app_kind` between `source` and `simple` —
 keeping the name — prunes whatever the old kind installed and the new one does not. A
 `source` app that shipped a sidecar Quadlet, a `.timer` and a config tree becomes a
 `simple` app whose only installed path is the rendered `<name>.container`, and the other
@@ -176,7 +176,7 @@ so generated and runtime files are invisible to it.
 
 Only files are reconciled — a pruned tree can leave empty directories behind. And a unit
 dropped from the app that is still running keeps running until it is stopped or the host
-reboots: remove it from `application_enable_units` and stop it once by hand. That applies
+reboots: remove it from `systemd_app_enable_units` and stop it once by hand. That applies
 to a change of kind as much as to a deleted file.
 
 An app last deployed before the role recorded a manifest for its kind has none, so its
@@ -186,21 +186,21 @@ removing the rendered `<name>.container` by name.
 
 ## Caddy routing
 
-Set `application_domain` to expose the app through the reverse proxy without
-editing the central `Caddyfile`. The role drops a `<application_name>.caddy`
-snippet (`domain → upstream:port`) into `application_caddy_confd`, which the
+Set `systemd_app_domain` to expose the app through the reverse proxy without
+editing the central `Caddyfile`. The role drops a `<systemd_app_name>.caddy`
+snippet (`domain → upstream:port`) into `systemd_app_caddy_confd`, which the
 Caddyfile imports via `import /etc/caddy/conf.d/*.caddy`. The deploy playbook
 reloads Caddy once as a post-task, so the route applies after all apps converge.
 
-`application_upstream` defaults to `application_name` — correct for every `simple`
+`systemd_app_upstream` defaults to `systemd_app_name` — correct for every `simple`
 app (the container *is* `<name>`) and for `source` apps whose `ContainerName=`
 matches the app name. Override it when a `source` app's routable container is
 named differently. On `absent`, the role removes the `<name>.caddy` snippet it
 generated.
 
 The three values that compose the snippet are checked before it is written:
-`application_domain` must be a hostname of at least two labels, optionally wildcarded
-(`*.example.com`); `application_upstream` a container name; `application_port` 1-65535.
+`systemd_app_domain` must be a hostname of at least two labels, optionally wildcarded
+(`*.example.com`); `systemd_app_upstream` a container name; `systemd_app_port` 1-65535.
 The check is there because the failure is not local — the domain becomes the address of a
 site block, and the Caddyfile imports *every* app's snippet, so one value carrying a brace,
 a comment character or a newline stops Caddy loading any route at all. A typo at the call
@@ -252,24 +252,24 @@ healthcheck a container that boots and then serves errors counts as started, so 
 image stays. `Notify=healthy` closes that gap: systemd withholds "started" until the
 first probe passes, which turns a broken image into a failed start that gets rolled back.
 
-For a `simple` app, set `application_health_cmd` and the role emits the whole block —
+For a `simple` app, set `systemd_app_health_cmd` and the role emits the whole block —
 `HealthCmd`, `HealthInterval`, `HealthRetries`, `HealthStartPeriod`, `Notify=healthy`,
 and a matching `TimeoutStartSec`. Only the command is per-app, because nothing else can
 be: an HTTP app wants a request, Postgres wants `pg_isready`. Everything around it is
 fleet policy in `defaults/main.yml` and rarely needs overriding.
 
 ```yaml
-    - role: application
-      application_kind: simple
-      application_name: nasplan
-      application_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
+    - role: systemd_app
+      systemd_app_kind: simple
+      systemd_app_name: nasplan
+      systemd_app_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
 ```
 
 Two things to know. The command runs **inside** the container, so the tool has to exist
 in the image — check with `podman exec <name> sh -lc 'command -v wget curl'` before
 relying on it, because a probe that can never pass makes the deploy itself fail. And
 address the app as `127.0.0.1`, not `localhost`, which resolves to `::1` on musl images
-where nothing is listening. Leave `application_health_cmd` empty for an app that cannot
+where nothing is listening. Leave `systemd_app_health_cmd` empty for an app that cannot
 be probed; it then gets no health block and no rollback protection.
 
 `source` apps declare these keys in their own Quadlet files (see
@@ -277,7 +277,7 @@ be probed; it then gets no health block and no rollback protection.
 
 ## Secrets
 
-`application_env` renders `Environment=` lines into a Quadlet, which is a unit file and
+`systemd_app_env` renders `Environment=` lines into a Quadlet, which is a unit file and
 world-readable — fine for a hostname, wrong for a client secret. Instead, an app that needs
 secrets ships one SOPS-encrypted file in its own directory, keyed by the podman secret
 names:
@@ -362,22 +362,22 @@ See `ansible/SECRETS.md` for the key itself and how CI gets it.
 
 A container that writes to a bind mount needs the host directory to exist with the right
 owner first: podman creates a missing path as `root:root`, and an image running as a
-non-root user then cannot write in it. `application_data_dirs` creates them before the
+non-root user then cannot write in it. `systemd_app_data_dirs` creates them before the
 container starts.
 
 ```yaml
-      application_data_dirs:
+      systemd_app_data_dirs:
         # Relative to /var/app/<app>. 10001 is the uid the image runs as; if upstream
         # changes it, this must follow or the app starts and fails to write.
         - path: data
           owner: "10001"
           group: "10001"
           mode: "0700"
-      application_volumes:
-        - "{{ application_app_state_dir }}/data:/app/data"
+      systemd_app_volumes:
+        - "{{ systemd_app_app_state_dir }}/data:/app/data"
 ```
 
-A `source` app declares `application_data_dirs` the same way and writes the matching
+A `source` app declares `systemd_app_data_dirs` the same way and writes the matching
 `Volume=` line in its own Quadlet, where the host path has to be spelled out in full
 (`/var/app/<app>/data:/app/data`) — a static file cannot reference the role's variables.
 
@@ -390,12 +390,12 @@ would survive.
 
 ## Unit names and boot persistence
 
-The role starts/enables its **managed units**: `application_enable_units` if you
+The role starts/enables its **managed units**: `systemd_app_enable_units` if you
 list any, otherwise — for a `simple` app — the single generated `<name>.service`.
 A `source` app that lists none starts nothing and relies entirely on its
 `[Install]` section (e.g. the network-only `shared` app).
 
-`application_enable_units` takes the **generated** service name (the `.service`
+`systemd_app_enable_units` takes the **generated** service name (the `.service`
 suffix is optional):
 
 | Quadlet file      | Generated unit         |
@@ -418,34 +418,34 @@ A `source` app with a Caddy route:
 - hosts: all
   become: true
   roles:
-    - role: application
-      application_kind: source
-      application_name: whichday
-      application_enable_units:
+    - role: systemd_app
+      systemd_app_kind: source
+      systemd_app_name: whichday
+      systemd_app_enable_units:
         - whichday.service
       # Optional: route whichday.cloudyhome.org -> whichday:8080 via Caddy.
-      application_domain: whichday.cloudyhome.org
+      systemd_app_domain: whichday.cloudyhome.org
 ```
 
 A `simple` app — one image behind the reverse proxy, no source dir:
 
 ```yaml
-    - role: application
-      application_kind: simple
-      application_name: nasplan
-      application_image: docker.io/binarycodes/make-my-nas:latest
-      application_port: 8080
-      application_domain: nasplan.cloudyhome.org
+    - role: systemd_app
+      systemd_app_kind: simple
+      systemd_app_name: nasplan
+      systemd_app_image: docker.io/binarycodes/make-my-nas:latest
+      systemd_app_port: 8080
+      systemd_app_domain: nasplan.cloudyhome.org
 ```
 
 Decommission an app (leave the call in place for one converge, then delete it).
 This destroys `/var/app/<app>` — back it up first:
 
 ```yaml
-    - role: application
-      application_state: absent
-      application_kind: simple
-      application_name: whoami
+    - role: systemd_app
+      systemd_app_state: absent
+      systemd_app_kind: simple
+      systemd_app_name: whoami
 ```
 
 ## Where the logic lives

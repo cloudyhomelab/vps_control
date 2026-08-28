@@ -6,7 +6,7 @@
 # The install dirs are shared with every other app, so nothing there is removed by
 # pattern: what goes is exactly the set of paths the last deploy recorded in the host
 # install manifest, whichever kind wrote it. Teardown therefore needs no controller-side
-# apps/<name>/ tree at all. {{ application_app_state_dir }} is this app's alone, so it
+# apps/<name>/ tree at all. {{ systemd_app_app_state_dir }} is this app's alone, so it
 # goes wholesale. Podman named volumes and networks declared by an app's Quadlet files
 # are NOT removed — they outlive the units that created them, and Caddy's TLS
 # certificates live in one. Remove those by hand (`podman volume rm`) once you are sure.
@@ -14,93 +14,93 @@
 # Stop while the generated units still exist; stopping a Quadlet service also
 # removes its container (ExecStopPost). Tolerate a unit that was never deployed
 # (or already removed) so a repeat decommission stays green.
-- name: "Stop units for app {{ application_name }}"
+- name: "Stop units for app {{ systemd_app_name }}"
   ansible.builtin.systemd:
     name: "{{ item }}"
     state: stopped
-  loop: "{{ application_managed_units }}"
-  register: application_stop_result
+  loop: "{{ systemd_app_managed_units }}"
+  register: systemd_app_stop_result
   failed_when:
-    - application_stop_result is failed
-    - "'not loaded' not in (application_stop_result.msg | default('') | lower)"
-    - "'could not find' not in (application_stop_result.msg | default('') | lower)"
+    - systemd_app_stop_result is failed
+    - "'not loaded' not in (systemd_app_stop_result.msg | default('') | lower)"
+    - "'could not find' not in (systemd_app_stop_result.msg | default('') | lower)"
 
 # Kept alongside the manifest removal below, rather than folded into it: a 'simple' app
 # last deployed before the role recorded manifests for that kind has none, and its
 # rendered Quadlet would otherwise be left behind on the host forever. Removing a path
 # that is already gone is a no-op, so the overlap costs nothing.
-- name: "Remove rendered Quadlet for container {{ application_name }}"
+- name: "Remove rendered Quadlet for container {{ systemd_app_name }}"
   ansible.builtin.file:
-    path: "{{ application_system_dir }}/{{ application_name }}.container"
+    path: "{{ systemd_app_system_dir }}/{{ systemd_app_name }}.container"
     state: absent
-  when: application_kind == 'simple'
+  when: systemd_app_kind == 'simple'
   notify: Reload systemd
 
-- name: "Read recorded install manifest for app {{ application_name }}"
+- name: "Read recorded install manifest for app {{ systemd_app_name }}"
   ansible.builtin.include_tasks: read-manifest.yml
 
-- name: "Remove installed files for app {{ application_name }}"
+- name: "Remove installed files for app {{ systemd_app_name }}"
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
-  loop: "{{ application_manifest_paths }}"
+  loop: "{{ systemd_app_manifest_paths }}"
   notify: Reload systemd
 
 # Which secrets this app owns, from the record the last deploy wrote. Read before the
 # state tree that holds it is removed, and from the host rather than the encrypted file,
 # so a decommission needs nothing on the controller — the app's source tree may be gone.
-- name: "Read recorded secret digests for app {{ application_name }}"
+- name: "Read recorded secret digests for app {{ systemd_app_name }}"
   ansible.builtin.slurp:
-    src: "{{ application_secret_digest_file }}"
-  register: application_secret_digest_slurp
+    src: "{{ systemd_app_secret_digest_file }}"
+  register: systemd_app_secret_digest_slurp
   failed_when: false
 
 # The one task in this role that removes a directory tree, so the composed path is
 # re-checked here rather than trusted from main.yml's input validation. A name with a
-# slash or a leading dot would make this reach application_config_root itself, taking
+# slash or a leading dot would make this reach systemd_app_config_root itself, taking
 # every other app's config and data with it.
-- name: "Verify the state dir to remove belongs to app {{ application_name }}"
+- name: "Verify the state dir to remove belongs to app {{ systemd_app_name }}"
   ansible.builtin.assert:
     that:
-      - application_name is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
-      - application_app_state_dir == application_config_root ~ '/' ~ application_name
-      - application_app_state_dir != application_config_root
+      - systemd_app_name is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+      - systemd_app_app_state_dir == systemd_app_config_root ~ '/' ~ systemd_app_name
+      - systemd_app_app_state_dir != systemd_app_config_root
     fail_msg: >-
-      Refusing to remove {{ application_app_state_dir }}: an app's state directory must
-      be exactly one named child of {{ application_config_root }}, and
-      '{{ application_name }}' does not compose one.
+      Refusing to remove {{ systemd_app_app_state_dir }}: an app's state directory must
+      be exactly one named child of {{ systemd_app_config_root }}, and
+      '{{ systemd_app_name }}' does not compose one.
     quiet: true
 
 # Takes the install manifest with it — it lives inside this tree — so there is no
 # separate bookkeeping to clean up.
-- name: "Remove config, data and manifest of app {{ application_name }}"
+- name: "Remove config, data and manifest of app {{ systemd_app_name }}"
   ansible.builtin.file:
-    path: "{{ application_app_state_dir }}"
+    path: "{{ systemd_app_app_state_dir }}"
     state: absent
 
 # Podman secrets are host-global, so they are not part of the tree removed above and
 # have to be dropped by name. Names are re-checked here because they are read from a host
 # file and passed to a root command; a repeat decommission stays green, since a name that
 # is no longer stored is tolerated.
-- name: "Remove podman secrets of app {{ application_name }}"
+- name: "Remove podman secrets of app {{ systemd_app_name }}"
   ansible.builtin.command:
     argv: [podman, secret, rm, "{{ item }}"]
   loop: >-
-    {{ ((application_secret_digest_slurp.content | default('') | b64decode
+    {{ ((systemd_app_secret_digest_slurp.content | default('') | b64decode
          | default('{}', true)) | from_json).keys()
        | select('match', '^[A-Za-z0-9][A-Za-z0-9._-]*$') | list }}
-  register: application_secret_rm
-  changed_when: application_secret_rm.rc == 0
+  register: systemd_app_secret_rm
+  changed_when: systemd_app_secret_rm.rc == 0
   failed_when:
-    - application_secret_rm.rc != 0
-    - "'no such secret' not in (application_secret_rm.stderr | default('') | lower)"
+    - systemd_app_secret_rm.rc != 0
+    - "'no such secret' not in (systemd_app_secret_rm.stderr | default('') | lower)"
 
 # Caddy route snippet, if the app registered one. It lives in reverse_proxy's config
 # tree, not this app's, so it needs removing explicitly. The route stops resolving when
 # the deploy playbook reloads Caddy (post-task), as on the present path.
-- name: "Remove Caddy route for {{ application_name }}"
+- name: "Remove Caddy route for {{ systemd_app_name }}"
   ansible.builtin.file:
-    path: "{{ application_caddy_confd }}/{{ application_name }}.caddy"
+    path: "{{ systemd_app_caddy_confd }}/{{ systemd_app_name }}.caddy"
     state: absent
 
 # Forget the now-removed generated units. Notified handler runs here, not at end

@@ -9,7 +9,7 @@ apps/whichday/
   secrets.sops.yaml             # keys are those names; values are encrypted
 ```
 
-The [application role](roles/application/README.md#secrets) finds that file the same way
+The [systemd_app role](roles/systemd_app/README.md#secrets) finds that file the same way
 it finds `quadlet/` and `config/`, decrypts it on the controller during a deploy, and
 stores each entry in podman's secret store on the host. No value is written to a unit
 file, a config tree, or this repository in cleartext. Keys are the podman secret names:
@@ -65,7 +65,7 @@ podman secret name is host-global and shared names collide.
 ## Rotating, renaming, removing
 
 `sops edit` the file, commit the ciphertext, push. The deploy compares digests of what it
-last stored (see the [role README](roles/application/README.md#secrets)), so:
+last stored (see the [role README](roles/systemd_app/README.md#secrets)), so:
 
 - a **changed** value is re-created and the app restarted, because a running container
   keeps the value it was created with;

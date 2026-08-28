@@ -13,43 +13,43 @@
   roles:
     # Deploy the shared network first so it exists before any container that
     # joins it (Network=web.network) is started.
-    - role: application
-      application_kind: source
-      application_name: shared
+    - role: systemd_app
+      systemd_app_kind: source
+      systemd_app_name: shared
 
-    - role: application
-      application_kind: source
-      application_name: reverse_proxy
-      application_enable_units:
+    - role: systemd_app
+      systemd_app_kind: source
+      systemd_app_name: reverse_proxy
+      systemd_app_enable_units:
         - caddy.service
 
     # Every routed app follows reverse_proxy: registering a route writes into the state
     # directory caddy.service mounts, so the proxy is converged before anything adds to it.
-    - role: application
-      application_kind: simple
-      application_name: calculators
-      application_description: Calculators web app
-      application_image: docker.io/binarycodes/calculators:latest
-      application_domain: calc.cloudyhome.org
-      application_env:
+    - role: systemd_app
+      systemd_app_kind: simple
+      systemd_app_name: calculators
+      systemd_app_description: Calculators web app
+      systemd_app_image: docker.io/binarycodes/calculators:latest
+      systemd_app_domain: calc.cloudyhome.org
+      systemd_app_env:
         FORWARD_HEADERS_STRATEGY: native
-      application_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
+      systemd_app_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
 
-    - role: application
-      application_kind: simple
-      application_name: nasplan
-      application_image: docker.io/binarycodes/make-my-nas:latest
-      application_port: 8080
-      application_domain: nasplan.cloudyhome.org
-      application_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
+    - role: systemd_app
+      systemd_app_kind: simple
+      systemd_app_name: nasplan
+      systemd_app_image: docker.io/binarycodes/make-my-nas:latest
+      systemd_app_port: 8080
+      systemd_app_domain: nasplan.cloudyhome.org
+      systemd_app_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
 
-    - role: application
-      application_kind: source
-      application_name: whichday
-      application_enable_units:
+    - role: systemd_app
+      systemd_app_kind: source
+      systemd_app_name: whichday
+      systemd_app_enable_units:
         - whichday.service
-      application_domain: whichday.cloudyhome.org
-      application_data_dirs:
+      systemd_app_domain: whichday.cloudyhome.org
+      systemd_app_data_dirs:
         - path: data
           owner: "10001"
           group: "10001"
@@ -57,10 +57,10 @@
 
     # Host upkeep, not an app: a weekly timer reclaiming the images auto-update leaves
     # untagged. No quadlet/ or config/ of its own, just the two systemd units.
-    - role: application
-      application_kind: source
-      application_name: maintenance
-      application_enable_units:
+    - role: systemd_app
+      systemd_app_kind: source
+      systemd_app_name: maintenance
+      systemd_app_enable_units:
         - podman-prune.timer
 
   post_tasks:
@@ -74,7 +74,7 @@
 
     # Host-wide timer that runs `podman auto-update` refreshing every container marked AutoUpdate=registry.
     # A drop-in rather than a replacement unit, so upstream changes to the rest of
-    # the timer still apply. Not installable through the application role: that role
+    # the timer still apply. Not installable through the systemd_app role: that role
     # copies flat files into its own two install dirs and its manifest allowlist
     # refuses subdirectory paths, which is what a .timer.d/ drop-in is.
     - name: Ensure the Podman auto-update timer drop-in directory exists

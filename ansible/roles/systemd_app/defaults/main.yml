@@ -1,5 +1,5 @@
 ---
-# application_kind selects the deployment model and is REQUIRED at every call
+# systemd_app_kind selects the deployment model and is REQUIRED at every call
 # site (deliberately no default, so the mode is always explicit):
 #   source -> install an app's files from a controller directory (see below).
 #   simple -> render a single-container Quadlet from inline params (image, env,
@@ -9,27 +9,27 @@
 # previous deploy installed and this one does not; 'absent' stops those units and
 # removes everything the app owns on the host, config and data included (then delete
 # the role call). Destructive — back the app up first. See README.
-application_state: present
+systemd_app_state: present
 
 # App definitions on the Ansible controller.
-# Layout:  {{ application_apps_dir }}/<application_name>/
+# Layout:  {{ systemd_app_apps_dir }}/<systemd_app_name>/
 #   quadlet/            -> Podman Quadlet files (*.container, *.pod, *.network, ...)
 #   unit/               -> plain systemd unit files (*.service, *.timer, *.socket, ...)
 #   config/             -> arbitrary config tree, copied recursively to the host
 #   secrets.sops.yaml   -> SOPS-encrypted podman secrets (see below)
 # The first three belong to the 'source' kind; the secrets file is read for either kind, so
 # a 'simple' app with secrets has a directory holding just that.
-application_apps_dir: "{{ playbook_dir }}/../apps"
+systemd_app_apps_dir: "{{ playbook_dir }}/../apps"
 
 # Destinations on the target host.
-application_system_dir: /etc/containers/systemd   # Quadlet files (read by the generator)
-application_unit_dir: /etc/systemd/system         # plain systemd units
-application_config_root: /var/app                 # config lands in {{ root }}/{app}/config
+systemd_app_system_dir: /etc/containers/systemd   # Quadlet files (read by the generator)
+systemd_app_unit_dir: /etc/systemd/system         # plain systemd units
+systemd_app_config_root: /var/app                 # config lands in {{ root }}/{app}/config
 
-# Everything this app owns on the host below application_config_root: its deployed
+# Everything this app owns on the host below systemd_app_config_root: its deployed
 # config tree, plus any data a Quadlet bind-mounts under the same directory. Removed
 # wholesale on absent, so back the app up before decommissioning it.
-application_app_state_dir: "{{ application_config_root }}/{{ application_name }}"
+systemd_app_app_state_dir: "{{ systemd_app_config_root }}/{{ systemd_app_name }}"
 
 # Where an app records the host paths it installed — a 'source' app's Quadlet files,
 # systemd units and config tree, a 'simple' app's one rendered Quadlet. Both a later
@@ -42,43 +42,43 @@ application_app_state_dir: "{{ application_config_root }}/{{ application_name }}
 # that whole tree, which takes the manifest with it, and a hand-removed or restored
 # /var/app/<app> cannot leave a stale record behind. Root-owned; every recorded path is
 # allowlisted before anything is removed.
-application_manifest_file: "{{ application_app_state_dir }}/.install-manifest"
+systemd_app_manifest_file: "{{ systemd_app_app_state_dir }}/.install-manifest"
 
 # The controller-side sources a 'source' deploy installs from. quadlet/ and unit/ are
 # flat — installed by basename — while config/ is a tree whose layout is preserved, so
 # present.yml discovers it with `find` rather than a one-level fileglob.
-application_source_quadlet_files: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ application_name ~ '/quadlet/*') }}"
-application_source_unit_files: "{{ query('ansible.builtin.fileglob', application_apps_dir ~ '/' ~ application_name ~ '/unit/*') }}"
-application_source_config_dir: "{{ application_apps_dir }}/{{ application_name }}/config"
+systemd_app_source_quadlet_files: "{{ query('ansible.builtin.fileglob', systemd_app_apps_dir ~ '/' ~ systemd_app_name ~ '/quadlet/*') }}"
+systemd_app_source_unit_files: "{{ query('ansible.builtin.fileglob', systemd_app_apps_dir ~ '/' ~ systemd_app_name ~ '/unit/*') }}"
+systemd_app_source_config_dir: "{{ systemd_app_apps_dir }}/{{ systemd_app_name }}/config"
 
 # Ownership / permissions applied to everything this role installs.
-application_owner: root
-application_group: root
-application_file_mode: "0644"
-application_dir_mode: "0755"
+systemd_app_owner: root
+systemd_app_group: root
+systemd_app_file_mode: "0644"
+systemd_app_dir_mode: "0755"
 
-# Caddy auto-routing: when application_domain is set, a per-app route snippet
+# Caddy auto-routing: when systemd_app_domain is set, a per-app route snippet
 # lands here and is imported by the Caddyfile (`import /etc/caddy/conf.d/*.caddy`),
 # so a routed app needs no edit to the central Caddyfile. Caddy is reloaded once
 # by the deploy playbook (post-task), not here.
-application_caddy_confd: /var/app/reverse_proxy/config/conf.d
+systemd_app_caddy_confd: /var/app/reverse_proxy/config/conf.d
 
-# Route target when application_domain is set. The upstream defaults to the app
+# Route target when systemd_app_domain is set. The upstream defaults to the app
 # name (the common case where ContainerName matches, including every 'simple'
 # app), but an app whose routable container is named differently overrides
-# application_upstream.
-application_port: 8080                       # internal upstream port for the Caddy route
-application_upstream: "{{ application_name }}"   # upstream host (container name on the shared network)
+# systemd_app_upstream.
+systemd_app_port: 8080                       # internal upstream port for the Caddy route
+systemd_app_upstream: "{{ systemd_app_name }}"   # upstream host (container name on the shared network)
 
 # 'simple'-kind defaults for the rendered single container. Override at the call
 # site as needed; ignored by 'source'-kind apps (they declare these in their own
 # Quadlet files).
-application_network: web.network             # shared network the container joins
-application_env: {}                          # rendered as Environment= lines
-application_volumes: []                      # raw Volume= values
-application_publish_ports: []                # raw PublishPort= values
-application_container_options: []            # extra raw [Container] lines
-application_service_options: []              # extra raw [Service] lines
+systemd_app_network: web.network             # shared network the container joins
+systemd_app_env: {}                          # rendered as Environment= lines
+systemd_app_volumes: []                      # raw Volume= values
+systemd_app_publish_ports: []                # raw PublishPort= values
+systemd_app_container_options: []            # extra raw [Container] lines
+systemd_app_service_options: []              # extra raw [Service] lines
 
 # An app that needs secrets ships one SOPS-encrypted file in its own directory, keyed by
 # the podman secret names its Quadlet references with Secret=:
@@ -92,12 +92,12 @@ application_service_options: []              # extra raw [Service] lines
 # 'simple' app gets its Secret= lines rendered from these names, the variable being the
 # name upper-cased with dashes as underscores; a 'source' app writes the line itself and
 # can point it at any variable. See ansible/SECRETS.md.
-application_secrets_file: "{{ application_apps_dir }}/{{ application_name }}/secrets.sops.yaml"
+systemd_app_secrets_file: "{{ systemd_app_apps_dir }}/{{ systemd_app_name }}/secrets.sops.yaml"
 
 # The decrypted file, as one dict rather than top-level vars: its keys are podman secret
 # names, which are not legal variable names, and nothing sensitive then becomes a play
 # variable. Populated by present.yml when the file exists.
-application_secret_values: {}
+systemd_app_secret_values: {}
 
 # SHA-256 of every secret this app last stored, keyed by secret name. Podman offers no
 # version-independent way to read a stored secret back, so a digest recorded here is what
@@ -111,54 +111,54 @@ application_secret_values: {}
 # removed from the host by hand. So a deploy reads the store as well and re-stores any name
 # recorded here that podman no longer holds, rather than trusting the record and leaving the
 # app pointing at a name that is gone.
-application_secret_digest_file: "{{ application_app_state_dir }}/.secret-digests"
-application_secret_digests: "{{ application_secret_values | secret_digests }}"
+systemd_app_secret_digest_file: "{{ systemd_app_app_state_dir }}/.secret-digests"
+systemd_app_secret_digests: "{{ systemd_app_secret_values | secret_digests }}"
 
 # Directories to create before the container starts, for a bind mount whose contents the
 # app writes itself: podman would otherwise create the host path as root and a container
 # running unprivileged could not write in it. Each entry is {path, owner, group, mode},
 # where path is relative to this app's own state dir — so it cannot name another app's:
-#   - path: data            # -> {{ application_app_state_dir }}/data
+#   - path: data            # -> {{ systemd_app_app_state_dir }}/data
 #     owner: "10001"        # the image's non-root user, by numeric id
-application_data_dirs: []
+systemd_app_data_dirs: []
 
 # Healthcheck policy for a 'simple' app. The probe itself cannot have a useful default
 # — an HTTP app wants a request, Postgres wants pg_isready — so it comes from the call
 # site, and the rest of the block is fleet policy set once here. Naming a command turns
 # on Notify=healthy, which is what makes a bad image a failed start that
 # `podman auto-update` rolls back instead of a container that is up and serving nothing.
-# Leave application_health_cmd empty for an app that cannot be probed.
-application_health_cmd: ""                   # e.g. pg_isready -q -U postgres
-application_health_interval: 15s
-application_health_retries: 3
-application_health_start_period: 60s
+# Leave systemd_app_health_cmd empty for an app that cannot be probed.
+systemd_app_health_cmd: ""                   # e.g. pg_isready -q -U postgres
+systemd_app_health_interval: 15s
+systemd_app_health_retries: 3
+systemd_app_health_start_period: 60s
 # Deadline for the first passing probe: Notify=healthy makes systemd's 90s default a
 # hard limit, which is tight for a cold start and would roll back a good image.
-application_start_timeout: 180
+systemd_app_start_timeout: 180
 
 # Units this role starts/enables (present) and stops (absent). A 'simple' app
 # renders exactly one <name>.service, so default to that when the caller names
 # none; a 'source' app starts nothing unless it lists units (boot comes from the
 # Quadlet [Install] section, e.g. the network-only 'shared' app has no service).
-application_managed_units: >-
-  {{ (application_enable_units | default([]))
-     if (application_enable_units | default([]) | length > 0)
-     else ([application_name ~ '.service'] if application_kind == 'simple' else []) }}
+systemd_app_managed_units: >-
+  {{ (systemd_app_enable_units | default([]))
+     if (systemd_app_enable_units | default([]) | length > 0)
+     else ([systemd_app_name ~ '.service'] if systemd_app_kind == 'simple' else []) }}
 
 # --- Per-invocation parameters (passed as role params, see README) -------
-# application_kind:         REQUIRED — 'source' (files from a dir) or 'simple' (rendered container).
-# application_name:         REQUIRED — app dir name (source) / container name + Quadlet basename (simple).
-# application_state:        optional — present (default) deploys; absent decommissions.
-# application_enable_units: optional — systemd unit names to enable at boot and start now.
-# application_domain:       optional — public hostname; when set, a Caddy route is added.
-# application_upstream:     optional — upstream container name (default application_name).
-# application_port:         optional — upstream port (default 8080).
+# systemd_app_kind:         REQUIRED — 'source' (files from a dir) or 'simple' (rendered container).
+# systemd_app_name:         REQUIRED — app dir name (source) / container name + Quadlet basename (simple).
+# systemd_app_state:        optional — present (default) deploys; absent decommissions.
+# systemd_app_enable_units: optional — systemd unit names to enable at boot and start now.
+# systemd_app_domain:       optional — public hostname; when set, a Caddy route is added.
+# systemd_app_upstream:     optional — upstream container name (default systemd_app_name).
+# systemd_app_port:         optional — upstream port (default 8080).
 # --- 'simple'-kind only ---
-# application_image:        REQUIRED for simple+present — full image ref, e.g. docker.io/org/app:latest.
-# application_description:  optional — unit description (default "<name> container").
-# application_network/env/volumes/publish_ports: optional — see defaults above.
-# application_container_options/service_options: optional — raw lines for the
+# systemd_app_image:        REQUIRED for simple+present — full image ref, e.g. docker.io/org/app:latest.
+# systemd_app_description:  optional — unit description (default "<name> container").
+# systemd_app_network/env/volumes/publish_ports: optional — see defaults above.
+# systemd_app_container_options/service_options: optional — raw lines for the
 #   [Container] / [Service] sections, for keys this role has no parameter of its own.
-# application_data_dirs:    optional — bind-mount directories to pre-create with a given owner.
-# application_health_cmd:   optional — probe command; set it to get a healthcheck and
+# systemd_app_data_dirs:    optional — bind-mount directories to pre-create with a given owner.
+# systemd_app_health_cmd:   optional — probe command; set it to get a healthcheck and
 #   the auto-update rollback that depends on it. See the health defaults above.

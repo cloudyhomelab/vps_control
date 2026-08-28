@@ -75,7 +75,7 @@ class CallbackModule(CallbackBase):
             )
 
     def v2_runner_on_failed(self, result, ignore_errors=False):
-        # Tolerated failures (e.g. the application role's enable-tolerance) are not
+        # Tolerated failures (e.g. the systemd_app role's enable-tolerance) are not
         # run failures, so don't surface them as errors.
         if ignore_errors:
             return

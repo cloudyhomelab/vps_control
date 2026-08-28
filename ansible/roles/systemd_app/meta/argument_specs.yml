@@ -3,15 +3,15 @@ argument_specs:
   main:
     short_description: Deploy or decommission one app — files from a directory (source) or a rendered single container (simple) — plus its route.
     options:
-      application_kind:
+      systemd_app_kind:
         type: str
         required: true
         choices: [source, simple]
         description: >-
           source installs an app's Quadlet files, systemd units, and config tree
           from a controller directory; simple renders a single-container Quadlet
-          from inline params (application_image, application_env, ...). Required.
-      application_state:
+          from inline params (systemd_app_image, systemd_app_env, ...). Required.
+      systemd_app_state:
         type: str
         required: false
         default: present
@@ -22,13 +22,13 @@ argument_specs:
           everything the app owns on the host — Quadlet files, systemd units, Caddy
           route, and its config/data directory (then delete the role call). absent is
           destructive and not reversible; back the app up first.
-      application_name:
+      systemd_app_name:
         type: str
         required: true
         description: >-
-          source: app directory name under application_apps_dir. simple: container
+          source: app directory name under systemd_app_apps_dir. simple: container
           name, Quadlet basename, and network DNS name the reverse proxy resolves.
-      application_enable_units:
+      systemd_app_enable_units:
         type: list
         elements: str
         required: false
@@ -36,26 +36,26 @@ argument_specs:
         description: >-
           systemd unit names to enable at boot and start now. A simple app defaults
           to its single <name>.service when none are given.
-      application_image:
+      systemd_app_image:
         type: str
         required: false
         description: >-
           simple kind only. Full image reference, e.g. docker.io/org/app:latest.
-          Required when application_kind is simple and state is present (enforced
+          Required when systemd_app_kind is simple and state is present (enforced
           in the role); not needed for source apps or for absent.
-      application_description:
+      systemd_app_description:
         type: str
         required: false
         description: >-
           simple kind only. Unit description (default "<name> container"). May not contain
           a control character, which would end the line and turn the rest into a further
           unit directive.
-      application_network:
+      systemd_app_network:
         type: str
         required: false
         default: web.network
         description: simple kind only. Podman network the rendered container joins.
-      application_env:
+      systemd_app_env:
         type: dict
         required: false
         default: {}
@@ -65,7 +65,7 @@ argument_specs:
           Values are quoted and escaped for you, so spaces, quotes and '%' are fine; a
           control character is refused, having no representation in a unit file. Not for
           secrets — a unit file is world-readable; see the secrets section of the README.
-      application_volumes:
+      systemd_app_volumes:
         type: list
         elements: str
         required: false
@@ -73,7 +73,7 @@ argument_specs:
         description: >-
           simple kind only. Raw Quadlet Volume= values, one line per entry — an entry
           holding a newline is refused rather than injected into the unit.
-      application_publish_ports:
+      systemd_app_publish_ports:
         type: list
         elements: str
         required: false
@@ -81,7 +81,7 @@ argument_specs:
         description: >-
           simple kind only. Raw Quadlet PublishPort= values for apps that need a host
           port, one line per entry.
-      application_container_options:
+      systemd_app_container_options:
         type: list
         elements: str
         required: false
@@ -90,7 +90,7 @@ argument_specs:
           simple kind only. Raw lines appended to the [Container] section, for Quadlet
           keys this role has no parameter of its own (e.g. HealthCmd=, Notify=). One line
           per entry; an entry holding a newline is refused.
-      application_service_options:
+      systemd_app_service_options:
         type: list
         elements: str
         required: false
@@ -99,7 +99,7 @@ argument_specs:
           simple kind only. Raw lines appended to the [Service] section, for unit keys
           this role has no parameter of its own. One line per entry; an entry holding a
           newline is refused.
-      application_data_dirs:
+      systemd_app_data_dirs:
         type: list
         elements: dict
         required: false
@@ -114,7 +114,7 @@ argument_specs:
             type: str
             required: true
             description: >-
-              Path relative to the app's state dir (application_config_root/<app>), e.g.
+              Path relative to the app's state dir (systemd_app_config_root/<app>), e.g.
               'data'. Absolute paths and '..' are refused.
           owner:
             type: str
@@ -127,8 +127,8 @@ argument_specs:
           mode:
             type: str
             required: false
-            description: Permissions (default application_dir_mode).
-      application_health_cmd:
+            description: Permissions (default systemd_app_dir_mode).
+      systemd_app_health_cmd:
         type: str
         required: false
         default: ''
@@ -137,31 +137,31 @@ argument_specs:
           request, pg_isready, whatever fits the app. Setting it emits the whole health
           block plus Notify=healthy, so a bad image fails to start and podman
           auto-update rolls it back. Empty means no healthcheck.
-      application_health_interval:
+      systemd_app_health_interval:
         type: str
         required: false
         default: 15s
         description: simple kind only. Time between probes once the container is up.
-      application_health_retries:
+      systemd_app_health_retries:
         type: int
         required: false
         default: 3
         description: simple kind only. Consecutive failures before the container is unhealthy.
-      application_health_start_period:
+      systemd_app_health_start_period:
         type: str
         required: false
         default: 60s
         description: >-
           simple kind only. Grace window after start during which a failing probe does
           not count against the retries.
-      application_start_timeout:
+      systemd_app_start_timeout:
         type: int
         required: false
         default: 180
         description: >-
           simple kind only. TimeoutStartSec for the unit, applied when a health command
           is set — Notify=healthy turns it into the deadline for the first passing probe.
-      application_domain:
+      systemd_app_domain:
         type: str
         required: false
         description: >-
@@ -170,15 +170,15 @@ argument_specs:
           two labels, optionally wildcarded ('*.example.com'): it becomes the address
           of a Caddy site block, and the Caddyfile imports every app's, so a value
           that breaks this one stops Caddy loading any route.
-      application_upstream:
+      systemd_app_upstream:
         type: str
         required: false
         description: >-
           Upstream container name the route proxies to, as resolved on the shared
-          network. Defaults to application_name; override when the routable
+          network. Defaults to systemd_app_name; override when the routable
           container is named differently. A container name, so the same shape as
-          application_name.
-      application_port:
+          systemd_app_name.
+      systemd_app_port:
         type: int
         required: false
         default: 8080

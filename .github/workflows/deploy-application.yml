@@ -7,7 +7,7 @@ on:
     paths:
       - 'ansible/apps/**'
       - 'ansible/playbooks/deploy_apps.yml'
-      - 'ansible/roles/application/**'
+      - 'ansible/roles/systemd_app/**'
       - 'ansible/filter_plugins/**'
       - 'ansible/ansible.cfg'
       - 'ansible/requirements.yml'

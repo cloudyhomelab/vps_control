@@ -172,7 +172,7 @@ def test_good_domains_are_accepted(domain):
 )
 def test_bad_domains_are_rejected(domain, why):
     problems = route_problems(domain, "calculators", 8080)
-    assert any("application_domain" in p for p in problems), why
+    assert any("systemd_app_domain" in p for p in problems), why
 
 
 @pytest.mark.parametrize("upstream", ["calculators", "calc.web", "a_b", "x-1.2_3"])
@@ -183,7 +183,7 @@ def test_good_upstreams_are_accepted(upstream):
 @pytest.mark.parametrize("upstream", ["calc alc", "-calc", ".calc", "calc/x", "", None])
 def test_bad_upstreams_are_rejected(upstream):
     problems = route_problems("x.example.com", upstream, 8080)
-    assert any("application_upstream" in p for p in problems)
+    assert any("systemd_app_upstream" in p for p in problems)
 
 
 @pytest.mark.parametrize("port", [1, 80, 8080, 65535, "8080"])
@@ -194,7 +194,7 @@ def test_good_ports_are_accepted(port):
 @pytest.mark.parametrize("port", [0, -1, 65536, 70000, "http", "", None, "80 80"])
 def test_bad_ports_are_rejected(port):
     problems = route_problems("x.example.com", "calc", port)
-    assert any("application_port" in p for p in problems)
+    assert any("systemd_app_port" in p for p in problems)
 
 
 def test_every_problem_is_reported_at_once():
@@ -237,7 +237,7 @@ def test_no_secret_value_appears_in_a_problem_message():
 
 def test_description_control_character_is_rejected():
     problems = container_problems({}, "app\nExecStopPost=/bin/x")
-    assert any("application_description" in p for p in problems)
+    assert any("systemd_app_description" in p for p in problems)
 
 
 def test_clean_description_is_accepted():
@@ -247,10 +247,10 @@ def test_clean_description_is_accepted():
 @pytest.mark.parametrize(
     "kwargs, param",
     [
-        ({"volumes": ["/a:/b\nUser=0"]}, "application_volumes"),
-        ({"publish_ports": ["443:443\nUser=0"]}, "application_publish_ports"),
-        ({"container_options": ["Foo=1\nBar=2"]}, "application_container_options"),
-        ({"service_options": ["Foo=1\nBar=2"]}, "application_service_options"),
+        ({"volumes": ["/a:/b\nUser=0"]}, "systemd_app_volumes"),
+        ({"publish_ports": ["443:443\nUser=0"]}, "systemd_app_publish_ports"),
+        ({"container_options": ["Foo=1\nBar=2"]}, "systemd_app_container_options"),
+        ({"service_options": ["Foo=1\nBar=2"]}, "systemd_app_service_options"),
     ],
 )
 def test_multiline_raw_entries_are_rejected_and_named(kwargs, param):

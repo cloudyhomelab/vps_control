@@ -1,0 +1,57 @@
+---
+# Loads the host paths recorded by the last deploy into systemd_app_manifest_paths,
+# leaving it at the empty default from main.yml when the app has no manifest here — a new
+# app, or one last deployed before the role recorded a manifest for its kind. Included by
+# present.yml, which prunes the recorded paths it no longer installs, and by absent.yml,
+# which removes all of them. Read for either kind, so the record a 'source' deploy wrote
+# is still what gets reconciled after the app is converted to 'simple', and vice versa.
+
+- name: "Stat install manifest for app {{ systemd_app_name }}"
+  ansible.builtin.stat:
+    path: "{{ systemd_app_manifest_file }}"
+  register: systemd_app_manifest_stat
+
+- name: "Read install manifest for app {{ systemd_app_name }}"
+  ansible.builtin.slurp:
+    src: "{{ systemd_app_manifest_file }}"
+  register: systemd_app_manifest_slurp
+  when: systemd_app_manifest_stat.stat.exists
+
+- name: "Load recorded paths from manifest for app {{ systemd_app_name }}"
+  when: systemd_app_manifest_stat.stat.exists
+  vars:
+    systemd_app_manifest_lines: >-
+      {{ (systemd_app_manifest_slurp.content | b64decode).splitlines()
+         | map('trim') | select('match', '.') | list }}
+    # A manifest line is legal in exactly two shapes. Flat: one path segment directly
+    # under an install dir, with '.' and '..' excluded because 'file: state=absent'
+    # deletes a directory recursively and either would take every app's files with it.
+    systemd_app_manifest_flat_re: >-
+      ^({{ [systemd_app_system_dir, systemd_app_unit_dir] | map('regex_escape') | join('|') }})/(?!\.\.?$)[^/]+$
+    # Nested: anywhere inside this app's own config tree, since that layout is
+    # preserved. No empty or '..' segment may appear, so the path cannot climb out
+    # into another app's directory.
+    systemd_app_manifest_config_re: >-
+      ^{{ (systemd_app_app_state_dir ~ '/config') | regex_escape }}/(?!(.*/)?\.\.(/|$))[^/]+(/[^/]+)*$
+    systemd_app_manifest_refused: >-
+      {{ systemd_app_manifest_lines
+         | reject('match', systemd_app_manifest_flat_re)
+         | reject('match', systemd_app_manifest_config_re) | list }}
+  block:
+    # Callers act on these paths as root, so a corrupt or tampered manifest must
+    # not be able to reach files outside what this role installs. Refuse the whole
+    # manifest rather than silently skipping the odd entry.
+    - name: "Refuse out-of-allowlist manifest paths for app {{ systemd_app_name }}"
+      ansible.builtin.assert:
+        that:
+          - systemd_app_manifest_refused | length == 0
+        fail_msg: >-
+          Manifest {{ systemd_app_manifest_file }} lists paths outside what this role
+          installs ({{ systemd_app_system_dir }}, {{ systemd_app_unit_dir }},
+          {{ systemd_app_app_state_dir }}/config): {{ systemd_app_manifest_refused }}.
+          Refusing to remove anything — the manifest may be corrupt or tampered with.
+        quiet: true
+
+    - name: "Record paths installed by the previous deploy of app {{ systemd_app_name }}"
+      ansible.builtin.set_fact:
+        systemd_app_manifest_paths: "{{ systemd_app_manifest_lines }}"

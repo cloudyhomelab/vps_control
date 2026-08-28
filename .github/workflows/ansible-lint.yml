@@ -47,7 +47,7 @@ jobs:
         working-directory: ansible
         run: ansible-galaxy collection install -r requirements.yml
 
-      # The application role's set arithmetic and input validation are Python (see
+      # The systemd_app role's set arithmetic and input validation are Python (see
       # ansible/filter_plugins/), so they are tested as Python — a table of cases in under a
       # second, rather than a playbook run per case. Run first: it is the cheapest of the
       # three checks and the one that says exactly what broke.
@@ -56,7 +56,7 @@ jobs:
         run: pytest tests -q
 
       # Both checks run from ansible/ so ansible.cfg applies: its roles_path=./roles is
-      # what makes the application role resolvable.
+      # what makes the systemd_app role resolvable.
       #
       # Kept alongside ansible-lint (which runs its own syntax check) because the two
       # see different things: this assembles the real play graph but never parses

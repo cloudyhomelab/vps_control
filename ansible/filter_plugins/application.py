@@ -128,18 +128,18 @@ def route_problems(domain, upstream=None, port=None):
     domain = "" if domain is None else str(domain)
     if not _HOSTNAME_RE.fullmatch(domain):
         problems.append(
-            f"application_domain {domain!r} is not a hostname of at least two labels, "
+            f"systemd_app_domain {domain!r} is not a hostname of at least two labels, "
             "optionally wildcarded as '*.example.com'"
         )
     elif len(domain) > _HOSTNAME_MAX:
         problems.append(
-            f"application_domain is {len(domain)} characters, over the {_HOSTNAME_MAX} maximum"
+            f"systemd_app_domain is {len(domain)} characters, over the {_HOSTNAME_MAX} maximum"
         )
 
     upstream = "" if upstream is None else str(upstream)
     if not _PODMAN_NAME_RE.fullmatch(upstream):
         problems.append(
-            f"application_upstream {upstream!r} is not a container name (letters, digits, "
+            f"systemd_app_upstream {upstream!r} is not a container name (letters, digits, "
             "dot, dash or underscore, not starting with a dot)"
         )
 
@@ -148,7 +148,7 @@ def route_problems(domain, upstream=None, port=None):
     except (TypeError, ValueError):
         port_number = None
     if port_number is None or not 1 <= port_number <= 65535:
-        problems.append(f"application_port {port!r} is not a port in 1-65535")
+        problems.append(f"systemd_app_port {port!r} is not a port in 1-65535")
 
     return problems
 
@@ -166,24 +166,24 @@ def container_problems(env, description="", volumes=None, publish_ports=None,
     for key, value in (env or {}).items():
         if not _ENV_KEY_RE.fullmatch(str(key)):
             problems.append(
-                f"application_env key {str(key)!r} is not a legal variable name (letters, "
+                f"systemd_app_env key {str(key)!r} is not a legal variable name (letters, "
                 "digits and underscore, no leading digit)"
             )
         # Reported by key, not by value: a failure message is no place for either, and the
         # key is what the caller has to go and fix.
         if isinstance(value, str) and _CONTROL_RE.search(value):
             problems.append(
-                f"the value of application_env key {str(key)!r} holds a control character"
+                f"the value of systemd_app_env key {str(key)!r} holds a control character"
             )
 
     if description is not None and _CONTROL_RE.search(str(description)):
-        problems.append("application_description holds a control character")
+        problems.append("systemd_app_description holds a control character")
 
     raw = (
-        ("application_volumes", volumes),
-        ("application_publish_ports", publish_ports),
-        ("application_container_options", container_options),
-        ("application_service_options", service_options),
+        ("systemd_app_volumes", volumes),
+        ("systemd_app_publish_ports", publish_ports),
+        ("systemd_app_container_options", container_options),
+        ("systemd_app_service_options", service_options),
     )
     for name, lines in raw:
         for line in lines or []:
@@ -218,7 +218,7 @@ def systemd_env_lines(env):
         # container_problems); a backstop so the two cannot drift apart.
         if _CONTROL_RE.search(key) or _CONTROL_RE.search(value):
             raise AnsibleFilterError(
-                f"application_env entry {key!r} holds a control character, which cannot be "
+                f"systemd_app_env entry {key!r} holds a control character, which cannot be "
                 "written to a unit file at any quoting level"
             )
         lines.append(f'Environment="{key}={_escape_in_quotes(value)}"')
@@ -235,7 +235,7 @@ def _escape_in_quotes(value):
 
 
 class FilterModule:
-    """Filters for the 'application' role.
+    """Filters for the 'systemd_app' role.
 
     Named for what each one computes rather than for the role that calls them: these are
     headed for a collection, where filters resolve as namespace.collection.name across the

@@ -1,0 +1,147 @@
+---
+# Deploys (state=present) or decommissions (state=absent) one app. Two kinds:
+#   source -> install Quadlet files, systemd units, and a config tree from a
+#             controller directory ({{ systemd_app_apps_dir }}/<name>/).
+#   simple -> render a single-container Quadlet from inline params (image, env, ...).
+# Both kinds optionally register a Caddy route. See README + defaults/main.yml.
+
+- name: Validate role input
+  ansible.builtin.assert:
+    that:
+      - systemd_app_name is defined
+      - systemd_app_name | string | length > 0
+      # The name composes every install path and, on absent, a recursive delete of
+      # {{ systemd_app_config_root }}/<name>, so it must be one plain path segment:
+      # a slash or a leading dot would let that delete escape the app's own directory.
+      - systemd_app_name is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+      - systemd_app_kind is defined
+      - systemd_app_kind in ['source', 'simple']
+      # 'simple' renders from an image, so present requires one (absent does not).
+      - systemd_app_kind != 'simple' or systemd_app_state == 'absent' or (systemd_app_image is defined and (systemd_app_image | string | length > 0))
+    fail_msg: >-
+      The 'systemd_app' role requires 'systemd_app_name' (letters, digits, dot, dash
+      or underscore, not starting with a dot) and 'systemd_app_kind' (source|simple);
+      a 'simple' app being deployed (state=present) also requires 'systemd_app_image'.
+    quiet: true
+
+# The values checked below are interpolated into files this role generates rather than
+# passed to a module, so a stray character does not fail the task that writes them. Caddy
+# refuses a whole imported config, which takes every other app's route down with one bad
+# domain, and systemd mis-parses an Environment= line into a different variable without
+# complaining. Checked here, alongside the rest of the input, so a typo at a call site is a
+# failed run rather than a half-deployed app or a proxy that will not load.
+#
+# Both filters return one string per problem, so a run reports everything wrong at once
+# rather than the first thing. What each accepts, and why, is in filter_plugins/application.py.
+- name: "Verify the route inputs of app {{ systemd_app_name }}"
+  ansible.builtin.assert:
+    that:
+      - systemd_app_route_problems | length == 0
+    fail_msg: >-
+      App {{ systemd_app_name }} cannot be routed as given:
+      {{ systemd_app_route_problems | join('; ') }}.
+    quiet: true
+  vars:
+    systemd_app_route_problems: >-
+      {{ systemd_app_domain | route_problems(systemd_app_upstream, systemd_app_port) }}
+  when:
+    - systemd_app_state == 'present'
+    - systemd_app_domain is defined
+    - systemd_app_domain | string | length > 0
+
+- name: "Verify the rendered container inputs of app {{ systemd_app_name }}"
+  ansible.builtin.assert:
+    that:
+      - systemd_app_container_problems | length == 0
+    fail_msg: >-
+      App {{ systemd_app_name }} has values that would not survive into its Quadlet:
+      {{ systemd_app_container_problems | join('; ') }}.
+    quiet: true
+  vars:
+    systemd_app_container_problems: >-
+      {{ systemd_app_env | container_problems(systemd_app_description | default(''),
+         systemd_app_volumes, systemd_app_publish_ports,
+         systemd_app_container_options, systemd_app_service_options) }}
+  when:
+    - systemd_app_state == 'present'
+    - systemd_app_kind == 'simple'
+
+# A 'source' app installs from this directory, and every variable that reads it
+# (systemd_app_source_quadlet_files and its two siblings) is a fileglob, which returns an
+# empty list for a path that is not there rather than failing. So a wrong
+# systemd_app_apps_dir installs nothing and still reports success — and worse, on an app
+# already deployed, present.yml reads that empty set as "the app has stopped shipping
+# these files" and prunes every path the last deploy recorded. Checked here, before
+# either can happen.
+#
+# Only on the present path: a decommission works from the manifest on the host alone, so
+# it has to keep working once the app's source tree is gone.
+- name: "Verify source directory of app {{ systemd_app_name }}"
+  when:
+    - systemd_app_kind == 'source'
+    - systemd_app_state == 'present'
+  block:
+    - name: "Stat source directory of app {{ systemd_app_name }}"
+      ansible.builtin.stat:
+        path: "{{ systemd_app_apps_dir }}/{{ systemd_app_name }}"
+      delegate_to: localhost
+      become: false
+      register: systemd_app_source_dir_stat
+
+    - name: "Refuse a source app with no source directory: {{ systemd_app_name }}"
+      ansible.builtin.assert:
+        that:
+          - systemd_app_source_dir_stat.stat.exists
+          - systemd_app_source_dir_stat.stat.isdir
+        fail_msg: >-
+          'source'-kind app {{ systemd_app_name }} has no directory at
+          {{ systemd_app_apps_dir }}/{{ systemd_app_name }}. Deploying it would install
+          nothing and still report success, and on an app already on the host it would
+          remove every file the last deploy installed. Check systemd_app_apps_dir: its
+          default is relative to the invoked playbook's own location, so it moves when
+          the playbook does.
+        quiet: true
+
+# Facts and registers both persist for the rest of the play, and this role runs once
+# per app, so everything path-shaped is cleared here — an app must never inherit
+# another app's paths from an earlier invocation in the same run, least of all into a
+# task that deletes them. systemd_app_config_found is included because its `find` is
+# skipped for apps with no config tree, which would otherwise leave the previous app's
+# file list standing. systemd_app_source_dir_stat has already been consumed by the assert
+# above, and is cleared all the same, so nothing added later can read another app's result.
+#
+# The secret facts are here for the same reason and matter as much: the decrypted values
+# of one app must never be visible to the next, the digest read is skipped for an app with
+# no record and the store listing for an app with no secrets, so a stale register would make
+# this app's secrets look already-stored — or already-present on the host — and a stale
+# create result would restart an app that rotated nothing. The install registers are
+# here for that last reason too: each is skipped for the kind — or the app — that does not
+# use it, so one app's file changes would otherwise decide how the next app is reloaded.
+- name: "Reset install path facts for app {{ systemd_app_name }}"
+  ansible.builtin.set_fact:
+    systemd_app_manifest_paths: []
+    systemd_app_installed_paths: []
+    systemd_app_source_dir_stat: {}
+    systemd_app_config_found: {}
+    systemd_app_secrets_stat: {}
+    systemd_app_secret_load: {}
+    systemd_app_secret_reconciled: {store: [], drop: [], remove: []}
+    systemd_app_secret_digest_stat: {}
+    systemd_app_secret_digest_slurp: {}
+    systemd_app_secret_store_list: {}
+    systemd_app_secret_create: {}
+    systemd_app_quadlet_render: {}
+    systemd_app_quadlet_install: {}
+    systemd_app_unit_install: {}
+    systemd_app_config_deploy: {}
+    systemd_app_start_result: {}
+    systemd_app_restart_needed: false
+    systemd_app_config_changed: false
+
+- name: "Deploy app {{ systemd_app_name }}"
+  ansible.builtin.include_tasks: present.yml
+  when: systemd_app_state == 'present'
+
+- name: "Decommission app {{ systemd_app_name }}"
+  ansible.builtin.include_tasks: absent.yml
+  when: systemd_app_state == 'absent'

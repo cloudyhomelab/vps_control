@@ -1,6 +1,6 @@
 ---
 galaxy_info:
-  role_name: application
+  role_name: systemd_app
   author: infra
   description: >-
     Deploy or decommission one app behind the reverse proxy: either install its
