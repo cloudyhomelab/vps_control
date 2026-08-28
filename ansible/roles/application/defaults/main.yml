@@ -112,7 +112,7 @@ application_secret_values: {}
 # recorded here that podman no longer holds, rather than trusting the record and leaving the
 # app pointing at a name that is gone.
 application_secret_digest_file: "{{ application_app_state_dir }}/.secret-digests"
-application_secret_digests: "{{ application_secret_values | app_secret_digests }}"
+application_secret_digests: "{{ application_secret_values | secret_digests }}"
 
 # Directories to create before the container starts, for a bind mount whose contents the
 # app writes itself: podman would otherwise create the host path as root and a container

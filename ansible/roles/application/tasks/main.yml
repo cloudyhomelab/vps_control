@@ -43,7 +43,7 @@
     quiet: true
   vars:
     application_route_problems: >-
-      {{ application_domain | app_route_problems(application_upstream, application_port) }}
+      {{ application_domain | route_problems(application_upstream, application_port) }}
   when:
     - application_state == 'present'
     - application_domain is defined
@@ -59,7 +59,7 @@
     quiet: true
   vars:
     application_container_problems: >-
-      {{ application_env | app_container_problems(application_description | default(''),
+      {{ application_env | container_problems(application_description | default(''),
          application_volumes, application_publish_ports,
          application_container_options, application_service_options) }}
   when:

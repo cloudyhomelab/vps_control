@@ -8,9 +8,9 @@ Image={{ application_image }}
 ContainerName={{ application_name }}
 AutoUpdate=registry
 Network={{ application_network }}
-{# Quoting and escaping live in app_systemd_env_lines, where they are tested; see
+{# Quoting and escaping live in systemd_env_lines, where they are tested; see
    filter_plugins/application.py for the systemd rules they follow. #}
-{% for line in application_env | app_systemd_env_lines %}
+{% for line in application_env | systemd_env_lines %}
 {{ line }}
 {% endfor %}
 {% for name in application_secret_values | sort %}

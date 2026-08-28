@@ -49,7 +49,7 @@ _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 
 # --- secrets ---------------------------------------------------------------------------
 
-def app_secret_digests(values):
+def secret_digests(values):
     """SHA-256 of each secret's value, keyed by secret name.
 
     Podman offers no version-independent way to read a stored secret back, so a digest is
@@ -61,10 +61,10 @@ def app_secret_digests(values):
     }
 
 
-def app_secret_reconcile(digests, recorded_b64="", stored=None):
+def reconcile_secrets(digests, recorded_b64="", stored=None):
     """Work out which podman secrets to store and which to drop.
 
-    ``digests`` is this app's secrets as app_secret_digests returns them, ``recorded_b64``
+    ``digests`` is this app's secrets as secret_digests returns them, ``recorded_b64``
     the digest file exactly as ``slurp`` hands it over (base64 of JSON, empty when the file
     is not there), and ``stored`` the names podman currently holds.
 
@@ -116,7 +116,7 @@ def _recorded_digests(recorded_b64):
 
 # --- inputs that compose a generated file ----------------------------------------------
 
-def app_route_problems(domain, upstream=None, port=None):
+def route_problems(domain, upstream=None, port=None):
     """Why this app cannot be routed, one string per problem; empty means it can.
 
     These three compose a Caddy site block, and the Caddyfile imports every app's snippet,
@@ -153,8 +153,8 @@ def app_route_problems(domain, upstream=None, port=None):
     return problems
 
 
-def app_container_problems(env, description="", volumes=None, publish_ports=None,
-                           container_options=None, service_options=None):
+def container_problems(env, description="", volumes=None, publish_ports=None,
+                       container_options=None, service_options=None):
     """Why this app's Quadlet cannot be rendered, one string per problem.
 
     Values are not checked for spaces, quotes or percent signs: the template quotes and
@@ -198,7 +198,7 @@ def app_container_problems(env, description="", volumes=None, publish_ports=None
 
 # --- rendering -------------------------------------------------------------------------
 
-def app_systemd_env_lines(env):
+def systemd_env_lines(env):
     """``Environment=`` lines for a Quadlet, quoted and escaped.
 
     systemd splits ``Environment=`` on whitespace, so a bare value with a space would set
@@ -215,7 +215,7 @@ def app_systemd_env_lines(env):
     for key in sorted(normalised):
         value = normalised[key]
         # Unreachable through the role, which validates before rendering (see
-        # app_container_problems); a backstop so the two cannot drift apart.
+        # container_problems); a backstop so the two cannot drift apart.
         if _CONTROL_RE.search(key) or _CONTROL_RE.search(value):
             raise AnsibleFilterError(
                 f"application_env entry {key!r} holds a control character, which cannot be "
@@ -235,13 +235,19 @@ def _escape_in_quotes(value):
 
 
 class FilterModule:
-    """Filters for the 'application' role, namespaced app_* to keep them out of the way."""
+    """Filters for the 'application' role.
+
+    Named for what each one computes rather than for the role that calls them: these are
+    headed for a collection, where filters resolve as namespace.collection.name across the
+    whole collection and no role can scope its own, so a role prefix would mark ownership
+    the FQCN already carries -- and would read wrong the first time a second role uses one.
+    """
 
     def filters(self):
         return {
-            "app_secret_digests": app_secret_digests,
-            "app_secret_reconcile": app_secret_reconcile,
-            "app_route_problems": app_route_problems,
-            "app_container_problems": app_container_problems,
-            "app_systemd_env_lines": app_systemd_env_lines,
+            "secret_digests": secret_digests,
+            "reconcile_secrets": reconcile_secrets,
+            "route_problems": route_problems,
+            "container_problems": container_problems,
+            "systemd_env_lines": systemd_env_lines,
         }

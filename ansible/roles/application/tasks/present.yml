@@ -264,15 +264,15 @@
 
 # Storing is create-only, so what changed has to be worked out first — from three inputs:
 # what this app declares, what it last stored, and what the host still holds. The rules are
-# app_secret_reconcile's, with the cases spelled out in tests/test_application_filters.py.
+# reconcile_secrets', with the cases spelled out in tests/test_application_filters.py.
 # Digests and names only reach the fact; no value does, and the deploy is verbose enough to
 # print what it sets.
 - name: "Reconcile recorded secrets of app {{ application_name }}"
   ansible.builtin.set_fact:
     application_secret_reconciled: >-
       {{ application_secret_digests
-         | app_secret_reconcile(application_secret_digest_slurp.content | default(''),
-                                application_secret_store_list.stdout_lines | default([], true)) }}
+         | reconcile_secrets(application_secret_digest_slurp.content | default(''),
+                             application_secret_store_list.stdout_lines | default([], true)) }}
 
 # Podman cannot update a stored secret in place on every version this may run on, and
 # `create` refuses a name that exists, so a rotation is a remove followed by a create.
