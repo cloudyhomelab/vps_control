@@ -1,9 +1,17 @@
 # The scenario's target host: systemd as PID 1, podman inside it, python3 for Ansible.
 FROM {{ item.image }}
 
-RUN dnf -y install systemd podman python3 procps-ng \
+RUN dnf -y install systemd podman python3 sudo procps-ng \
  && dnf clean all \
  && rm -rf /var/cache/dnf
+
+# A consuming play sets become: true, so the scenario does too — and the connection
+# already lands as root, which makes the sudo it goes through pure ceremony. The base
+# image's PAM stack cannot complete account management for it ("Authentication service
+# cannot retrieve authentication info"), so the ceremony is replaced outright rather than
+# repaired with nsswitch and authselect surgery inside a throwaway container.
+RUN printf 'auth sufficient pam_permit.so\naccount sufficient pam_permit.so\nsession sufficient pam_permit.so\n' \
+      > /etc/pam.d/sudo
 
 # Units that have nothing to manage in a container and only fail loudly if left enabled.
 RUN systemctl mask systemd-udevd.service systemd-udev-trigger.service \

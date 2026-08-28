@@ -29,7 +29,9 @@ sudo env "PATH=$PATH" molecule test
 rootful inside rootful is the nesting that needs the fewest concessions — under a rootless
 outer podman the inner one also wants `/dev/fuse` and subuid ranges of its own.
 `molecule converge` leaves the container up for `podman exec -it systemd-app bash`;
-`molecule destroy` removes it.
+`molecule destroy` removes it. The driver builds `Dockerfile.j2` only when the image it
+produces is missing, so an edit to it needs `sudo podman rmi molecule_local/systemd-app`
+before the next run — on a CI runner the question never comes up, the machine being new.
 
 The scenario deliberately does not run the fixture containers on a podman network
 (`Network=none`, `systemd_app_network: none`): joining one would put netavark in the
