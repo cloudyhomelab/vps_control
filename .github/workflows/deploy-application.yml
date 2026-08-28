@@ -8,6 +8,8 @@ on:
       - 'ansible/apps/**'
       - 'ansible/playbooks/deploy_apps.yml'
       - 'ansible/roles/application/**'
+      - 'ansible/filter_plugins/**'
+      - 'ansible/ansible.cfg'
       - 'ansible/requirements.yml'
 
 # One Ansible run against the VPS at a time. The group name is shared with the weekly

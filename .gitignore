@@ -1,2 +1,6 @@
 .idea/
 .claude/
+
+# pytest runs in-tree against ansible/filter_plugins (see ansible/tests/).
+__pycache__/
+.pytest_cache/

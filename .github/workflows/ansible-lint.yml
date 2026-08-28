@@ -35,9 +35,10 @@ jobs:
       # it, so the lint and the syntax check below run against the very ansible-core and
       # bundled collections a deploy will use — instead of the second, collection-less
       # core that pip drags in as an ansible-lint dependency. --include-apps is what puts
-      # the ansible-lint entry point on PATH.
-      - name: Install ansible-lint
-        run: pipx inject ansible-core ansible-lint --include-apps
+      # the ansible-lint and pytest entry points on PATH. pytest belongs in this venv too:
+      # the filter plugins import ansible.errors, which is importable only here.
+      - name: Install ansible-lint and pytest
+        run: pipx inject ansible-core ansible-lint pytest --include-apps
 
       # Same seam as the deploy, for the same reason (see ansible-run.yml). Needed here
       # too, and not only inside ansible-lint: the syntax check below resolves modules on
@@ -45,6 +46,14 @@ jobs:
       - name: Install any Ansible collection the runner image lacks
         working-directory: ansible
         run: ansible-galaxy collection install -r requirements.yml
+
+      # The application role's set arithmetic and input validation are Python (see
+      # ansible/filter_plugins/), so they are tested as Python — a table of cases in under a
+      # second, rather than a playbook run per case. Run first: it is the cheapest of the
+      # three checks and the one that says exactly what broke.
+      - name: Unit-test the filter plugins
+        working-directory: ansible
+        run: pytest tests -q
 
       # Both checks run from ansible/ so ansible.cfg applies: its roles_path=./roles is
       # what makes the application role resolvable.
