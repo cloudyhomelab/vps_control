@@ -183,3 +183,43 @@ argument_specs:
         required: false
         default: 8080
         description: Internal upstream port for the Caddy route. 1-65535.
+      # Host layout and controller layout. Set once for a fleet rather than per app,
+      # but specced because a consumer whose hosts are laid out differently sets them.
+      systemd_app_apps_dir:
+        type: str
+        required: false
+        description: >-
+          Directory on the controller holding the app definitions, one directory per
+          app name — where a source app's quadlet/, unit/ and config/ are read from,
+          and where either kind's secrets.sops.yaml is looked for. Defaults to the
+          apps/ tree beside the playbook.
+      systemd_app_system_dir:
+        type: str
+        required: false
+        default: /etc/containers/systemd
+        description: >-
+          Host directory Quadlet files are installed to — the one the Quadlet
+          generator reads at daemon-reload, so it is a podman-defined path rather
+          than a free choice.
+      systemd_app_unit_dir:
+        type: str
+        required: false
+        default: /etc/systemd/system
+        description: >-
+          Host directory plain systemd units from a source app's unit/ are
+          installed to.
+      systemd_app_root:
+        type: str
+        required: false
+        default: /var/app
+        description: >-
+          Parent of every app's home on the host; this app's is <root>/<name>, holding
+          its deployed config tree, its bind-mounted data and its install manifest, and
+          removed wholesale on absent.
+      systemd_app_caddy_confd:
+        type: str
+        required: false
+        description: >-
+          Host directory the generated Caddy route snippet is written to, which the
+          reverse proxy's Caddyfile imports. The one directory this role writes into
+          that another app owns, so it follows wherever that app keeps its config.
