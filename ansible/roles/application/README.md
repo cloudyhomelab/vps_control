@@ -109,6 +109,15 @@ duplicates per week.
 | `application_service_options` | no                 | Raw lines for the `[Service]` section.            |
 | `application_health_cmd`    | no                   | Probe command; enables the health block (see below). |
 
+`application_env` values are quoted and escaped into the unit, so a value with spaces, a
+`"` or a `%` needs nothing special at the call site (systemd splits `Environment=` on
+whitespace and reads `%` as a specifier, so a bare value would otherwise be truncated or
+mangled). Keys have to spell legal variable names — letters, digits and underscore, no
+leading digit. A control character in a value, a description, or one of the raw-line lists
+is refused rather than written: a newline ends the line and turns whatever follows into
+another unit directive, and no quoting fixes that. The raw-line parameters are one Quadlet
+line per list entry, which is why an entry may not contain a newline of its own.
+
 ## Tunables (defaults)
 
 | Variable                  | Default                      | Purpose                                  |
@@ -188,6 +197,14 @@ app (the container *is* `<name>`) and for `source` apps whose `ContainerName=`
 matches the app name. Override it when a `source` app's routable container is
 named differently. On `absent`, the role removes the `<name>.caddy` snippet it
 generated.
+
+The three values that compose the snippet are checked before it is written:
+`application_domain` must be a hostname of at least two labels, optionally wildcarded
+(`*.example.com`); `application_upstream` a container name; `application_port` 1-65535.
+The check is there because the failure is not local — the domain becomes the address of a
+site block, and the Caddyfile imports *every* app's snippet, so one value carrying a brace,
+a comment character or a newline stops Caddy loading any route at all. A typo at the call
+site is a failed run instead.
 
 ## Making changes take effect
 

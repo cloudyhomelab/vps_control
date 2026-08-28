@@ -8,8 +8,10 @@ Image={{ application_image }}
 ContainerName={{ application_name }}
 AutoUpdate=registry
 Network={{ application_network }}
-{% for key, value in application_env.items() %}
-Environment={{ key }}={{ value }}
+{# Quoting and escaping live in app_systemd_env_lines, where they are tested; see
+   filter_plugins/application.py for the systemd rules they follow. #}
+{% for line in application_env | app_systemd_env_lines %}
+{{ line }}
 {% endfor %}
 {% for name in application_secret_values | sort %}
 Secret={{ name }},type=env,target={{ name | upper | replace('-', '_') }}

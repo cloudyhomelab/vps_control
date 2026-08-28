@@ -24,6 +24,48 @@
       a 'simple' app being deployed (state=present) also requires 'application_image'.
     quiet: true
 
+# The values checked below are interpolated into files this role generates rather than
+# passed to a module, so a stray character does not fail the task that writes them. Caddy
+# refuses a whole imported config, which takes every other app's route down with one bad
+# domain, and systemd mis-parses an Environment= line into a different variable without
+# complaining. Checked here, alongside the rest of the input, so a typo at a call site is a
+# failed run rather than a half-deployed app or a proxy that will not load.
+#
+# Both filters return one string per problem, so a run reports everything wrong at once
+# rather than the first thing. What each accepts, and why, is in filter_plugins/application.py.
+- name: "Verify the route inputs of app {{ application_name }}"
+  ansible.builtin.assert:
+    that:
+      - application_route_problems | length == 0
+    fail_msg: >-
+      App {{ application_name }} cannot be routed as given:
+      {{ application_route_problems | join('; ') }}.
+    quiet: true
+  vars:
+    application_route_problems: >-
+      {{ application_domain | app_route_problems(application_upstream, application_port) }}
+  when:
+    - application_state == 'present'
+    - application_domain is defined
+    - application_domain | string | length > 0
+
+- name: "Verify the rendered container inputs of app {{ application_name }}"
+  ansible.builtin.assert:
+    that:
+      - application_container_problems | length == 0
+    fail_msg: >-
+      App {{ application_name }} has values that would not survive into its Quadlet:
+      {{ application_container_problems | join('; ') }}.
+    quiet: true
+  vars:
+    application_container_problems: >-
+      {{ application_env | app_container_problems(application_description | default(''),
+         application_volumes, application_publish_ports,
+         application_container_options, application_service_options) }}
+  when:
+    - application_state == 'present'
+    - application_kind == 'simple'
+
 # A 'source' app installs from this directory, and every variable that reads it
 # (application_source_quadlet_files and its two siblings) is a fileglob, which returns an
 # empty list for a path that is not there rather than failing. So a wrong

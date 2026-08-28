@@ -46,7 +46,10 @@ argument_specs:
       application_description:
         type: str
         required: false
-        description: simple kind only. Unit description (default "<name> container").
+        description: >-
+          simple kind only. Unit description (default "<name> container"). May not contain
+          a control character, which would end the line and turn the rest into a further
+          unit directive.
       application_network:
         type: str
         required: false
@@ -56,19 +59,28 @@ argument_specs:
         type: dict
         required: false
         default: {}
-        description: simple kind only. Environment variables rendered as Environment= lines.
+        description: >-
+          simple kind only. Environment variables rendered as Environment= lines. Keys
+          must spell legal variable names (letters, digits, underscore; no leading digit).
+          Values are quoted and escaped for you, so spaces, quotes and '%' are fine; a
+          control character is refused, having no representation in a unit file. Not for
+          secrets — a unit file is world-readable; see the secrets section of the README.
       application_volumes:
         type: list
         elements: str
         required: false
         default: []
-        description: simple kind only. Raw Quadlet Volume= values.
+        description: >-
+          simple kind only. Raw Quadlet Volume= values, one line per entry — an entry
+          holding a newline is refused rather than injected into the unit.
       application_publish_ports:
         type: list
         elements: str
         required: false
         default: []
-        description: simple kind only. Raw Quadlet PublishPort= values for apps that need a host port.
+        description: >-
+          simple kind only. Raw Quadlet PublishPort= values for apps that need a host
+          port, one line per entry.
       application_container_options:
         type: list
         elements: str
@@ -76,7 +88,8 @@ argument_specs:
         default: []
         description: >-
           simple kind only. Raw lines appended to the [Container] section, for Quadlet
-          keys this role has no parameter of its own (e.g. HealthCmd=, Notify=).
+          keys this role has no parameter of its own (e.g. HealthCmd=, Notify=). One line
+          per entry; an entry holding a newline is refused.
       application_service_options:
         type: list
         elements: str
@@ -84,7 +97,8 @@ argument_specs:
         default: []
         description: >-
           simple kind only. Raw lines appended to the [Service] section, for unit keys
-          this role has no parameter of its own.
+          this role has no parameter of its own. One line per entry; an entry holding a
+          newline is refused.
       application_data_dirs:
         type: list
         elements: dict
@@ -152,16 +166,20 @@ argument_specs:
         required: false
         description: >-
           Public hostname. When set, a Caddy route (domain -> upstream:port) is
-          written to the imported conf.d directory.
+          written to the imported conf.d directory. Must be a hostname of at least
+          two labels, optionally wildcarded ('*.example.com'): it becomes the address
+          of a Caddy site block, and the Caddyfile imports every app's, so a value
+          that breaks this one stops Caddy loading any route.
       application_upstream:
         type: str
         required: false
         description: >-
           Upstream container name the route proxies to, as resolved on the shared
           network. Defaults to application_name; override when the routable
-          container is named differently.
+          container is named differently. A container name, so the same shape as
+          application_name.
       application_port:
         type: int
         required: false
         default: 8080
-        description: Internal upstream port for the Caddy route.
+        description: Internal upstream port for the Caddy route. 1-65535.
