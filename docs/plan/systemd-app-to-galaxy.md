@@ -1,7 +1,7 @@
 # Publishing the `systemd_app` role to Ansible Galaxy
 
 What remains to be done to make `ansible/roles/systemd_app` usable outside this repository.
-Every file:line reference was verified against commit 15fc1ff; paths are relative to
+Every file:line reference was verified against commit 87cce4a; paths are relative to
 `ansible/roles/systemd_app/` unless stated.
 
 Publish as a **collection**, not a standalone role: `binarycodes.homelab`, keeping the role
@@ -70,9 +70,9 @@ have, and only a collection can both host them properly (`plugins/filter/`) and 
    reports everything wrong at once.
 
 9. **Rewrite the README app-agnostic.** It uses `whichday`, `nasplan`, `cloudyhome.org`,
-    `caddy-data` and the `web` network as examples throughout (README.md:79, 264, 276, 286-317,
-    423-438) and cross-references `ansible/SECRETS.md` (:359),
-    `ansible/filter_plugins/systemd_app.py` (:454) and `ansible/tests/` (:456) — paths a
+    `caddy-data` and the `web` network as examples throughout (README.md:79, 284, 296, 306-337,
+    443-458) and cross-references `ansible/SECRETS.md` (:379),
+    `ansible/filter_plugins/systemd_app.py` (:474) and `ansible/tests/` (:476) — paths a
     consumer will not have. Needs generic examples (`myapp`, `app.example.com`) with the
     secrets and filter material inlined or dropped.
 
@@ -87,17 +87,6 @@ have, and only a collection can both host them properly (`plugins/filter/`) and 
     pytest coverage; the role's actual behaviour — the install-manifest prune, a kind flip,
     `absent` — has none, and that coverage is what makes the extraction safe to refactor
     through.
-
-12. **Spec the host-layout vars in `argument_specs.yml`**: `systemd_app_system_dir`,
-    `systemd_app_unit_dir`, `systemd_app_root`, `systemd_app_caddy_confd`,
-    `systemd_app_apps_dir`. The 21 call-site options are specced; these are not, and external
-    users can set them.
-
-13. **Document the rendered container's policy as policy.** `templates/inline.container.j2`
-    hard-codes `AutoUpdate=registry`, `Restart=always`,
-    `WantedBy=multi-user.target default.target` and `Notify=healthy`. All are reasonable
-    defaults, all escapable via `systemd_app_container_options` /
-    `systemd_app_service_options`, but the README presents them as mechanism.
 
 ## Target layout
 
@@ -172,7 +161,7 @@ the FQCN form only exists once the collection does. Then:
 2. Publishing metadata: `galaxy.yml`, `meta/runtime.yml`, LICENSE, `galaxy_info` (6, 7).
 3. Filter doc blocks (8).
 4. README rewrite (9, 10).
-5. Molecule scenario (11) and the remaining `argument_specs` (12, 13).
+5. Molecule scenario (11).
 6. Point this repo at the published collection: `ansible/requirements.yml`, and drop
    `filter_plugins` / `roles_path` from `ansible/ansible.cfg`. The
    `.github/workflows/deploy-application.yml` triggers currently list six paths
