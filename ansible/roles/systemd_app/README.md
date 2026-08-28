@@ -126,7 +126,7 @@ line per list entry, which is why an entry may not contain a newline of its own.
 | `systemd_app_system_dir`  | `/etc/containers/systemd`    | Quadlet install dir on the host.         |
 | `systemd_app_unit_dir`    | `/etc/systemd/system`        | Plain-unit install dir on the host.      |
 | `systemd_app_root`        | `/var/app`                   | Every app's home → `<root>/<app>`.       |
-| `systemd_app_caddy_confd` | `/var/app/reverse_proxy/config/conf.d` | Dir for generated route snippets. |
+| `systemd_app_caddy_confd` | `{{ systemd_app_root }}/reverse_proxy/config/conf.d` | Dir for generated route snippets. |
 
 `systemd_app_apps_dir` follows the location of the playbook you invoke, so it moves
 when the playbook does. A `source` app whose directory is not there fails the run

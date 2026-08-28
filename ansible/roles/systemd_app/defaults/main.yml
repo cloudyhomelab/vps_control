@@ -61,7 +61,12 @@ systemd_app_dir_mode: "0755"
 # lands here and is imported by the Caddyfile (`import /etc/caddy/conf.d/*.caddy`),
 # so a routed app needs no edit to the central Caddyfile. Caddy is reloaded once
 # by the deploy playbook (post-task), not here.
-systemd_app_caddy_confd: /var/app/reverse_proxy/config/conf.d
+#
+# Composed from systemd_app_root rather than written out, so the routes follow the app
+# directories when that root moves. It is still the reverse proxy's own config tree —
+# the one directory this role writes into that belongs to another app — so an app named
+# something other than 'reverse_proxy' overrides this.
+systemd_app_caddy_confd: "{{ systemd_app_root }}/reverse_proxy/config/conf.d"
 
 # Route target when systemd_app_domain is set. The upstream defaults to the app
 # name (the common case where ContainerName matches, including every 'inline'
