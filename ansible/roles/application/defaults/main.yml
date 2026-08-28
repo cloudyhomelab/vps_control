@@ -107,9 +107,7 @@ application_secret_values: {}
 # declaring, and how a decommission knows what to remove without the encrypted file.
 # Root-only, and it lives in the app's state dir so a decommission takes it along.
 application_secret_digest_file: "{{ application_app_state_dir }}/.secret-digests"
-application_secret_digests: >-
-  {{ dict(application_secret_values.keys() | list
-          | zip(application_secret_values.values() | list | map('string') | map('hash', 'sha256'))) }}
+application_secret_digests: "{{ application_secret_values | app_secret_digests }}"
 
 # Directories to create before the container starts, for a bind mount whose contents the
 # app writes itself: podman would otherwise create the host path as root and a container
