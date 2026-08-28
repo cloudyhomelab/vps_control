@@ -1,0 +1,201 @@
+---
+# The rest of an app's life, which a converge alone never reaches: a file dropped from its
+# source tree, a change of kind, and decommissioning. Each stage asserts immediately after
+# the role runs, because the state it produces is the input to the next one.
+- name: Side effect
+  hosts: all
+  become: true
+  gather_facts: false
+
+  vars:
+    molecule_fixture_apps:
+      # The kind each app is in by the time this play tears it down — molsource has been
+      # flipped to inline by then, and absent prunes from the manifest either way.
+      - {name: molinline, kind: inline}
+      - {name: molsource, kind: inline}
+      - {name: molnet, kind: source}
+
+  tasks:
+    # --- a file dropped from the app's source tree -------------------------------------
+    - name: Drop a config file from the fixture app tree
+      ansible.builtin.file:
+        path: "{{ molecule_apps_dir }}/molsource/config/nested/deep.conf"
+        state: absent
+      delegate_to: localhost
+      become: false
+
+    - name: Re-deploy the source app without that file
+      ansible.builtin.include_role:
+        name: systemd_app
+      vars:
+        systemd_app_kind: source
+        systemd_app_name: molsource
+        systemd_app_enable_units:
+          - molsource.service
+          - molsource-extra.service
+        systemd_app_domain: molsource.molecule.test
+
+    - name: Stat the pruned and the kept config file
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /var/app/molsource/config/nested/deep.conf
+        - /var/app/molsource/config/app.conf
+      register: molecule_after_prune
+
+    - name: Read the manifest recorded by the re-deploy
+      ansible.builtin.slurp:
+        src: /var/app/molsource/.install-manifest
+      register: molecule_pruned_manifest
+
+    - name: Ask systemd for the state of the source app after the prune
+      ansible.builtin.command:
+        argv: [systemctl, is-active, molsource.service]
+      changed_when: false
+      register: molecule_pruned_unit
+
+    - name: Assert the dropped file was removed and recorded as gone
+      ansible.builtin.assert:
+        that:
+          - not molecule_after_prune.results[0].stat.exists
+          # Only what this deploy stopped installing goes: the rest of the tree stays.
+          - molecule_after_prune.results[1].stat.exists
+          - "'/var/app/molsource/config/nested/deep.conf' not in molecule_recorded"
+          - "'/var/app/molsource/config/app.conf' in molecule_recorded"
+          # A config change reaches a running app without the file's own unit being
+          # reinstalled, so the app must still be up.
+          - molecule_pruned_unit.stdout == 'active'
+        quiet: true
+      vars:
+        molecule_recorded: "{{ (molecule_pruned_manifest.content | b64decode).split() }}"
+
+    # --- the same app, converted to the other kind -------------------------------------
+    # The role prunes the unit file but cannot stop a unit the app no longer ships, which
+    # is a caller's job once (see the role README). Done here so the flip below is
+    # asserted against a host in the state a real conversion leaves.
+    - name: Stop the unit the converted app will no longer ship
+      ansible.builtin.systemd:
+        name: molsource-extra.service
+        state: stopped
+        enabled: false
+
+    - name: Deploy the same app as an inline container
+      ansible.builtin.include_role:
+        name: systemd_app
+      vars:
+        systemd_app_kind: inline
+        systemd_app_name: molsource
+        systemd_app_image: "{{ molecule_image }}"
+        systemd_app_domain: molsource.molecule.test
+        systemd_app_container_options:
+          - Exec=sleep infinity
+
+    - name: Stat what the previous kind installed
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/systemd/system/molsource-extra.service
+        - /var/app/molsource/config/app.conf
+        - /etc/containers/systemd/molsource.container
+      register: molecule_after_flip
+
+    - name: Read the manifest and Quadlet the flip left behind
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop:
+        - /var/app/molsource/.install-manifest
+        - /etc/containers/systemd/molsource.container
+      register: molecule_flip_files
+
+    - name: Ask systemd for the state of the converted app
+      ansible.builtin.command:
+        argv: [systemctl, is-active, molsource.service]
+      changed_when: false
+      register: molecule_flipped_unit
+
+    - name: Assert the conversion pruned the other kind and runs from the rendered Quadlet
+      ansible.builtin.assert:
+        that:
+          # What the 'source' deploy installed and the 'inline' one does not: the prune
+          # crossing kinds is the whole reason a manifest is recorded for both.
+          - not molecule_after_flip.results[0].stat.exists
+          - not molecule_after_flip.results[1].stat.exists
+          - molecule_after_flip.results[2].stat.exists
+          - molecule_flip_recorded == ['/etc/containers/systemd/molsource.container']
+          # The file at that path is now the rendered one, not the fixture's copy.
+          - "'Molecule fixture source container' not in molecule_flip_rendered"
+          - "'ContainerName=molsource' in molecule_flip_rendered"
+          - "'AutoUpdate=registry' in molecule_flip_rendered"
+          # A changed unit definition means a new container, so the app is restarted
+          # rather than left running on the definition it started with.
+          - molecule_flipped_unit.stdout == 'active'
+        fail_msg: "Recorded after the flip: {{ molecule_flip_recorded }}."
+        quiet: true
+      vars:
+        molecule_flip_recorded: "{{ (molecule_flip_files.results[0].content | b64decode).split() }}"
+        molecule_flip_rendered: "{{ molecule_flip_files.results[1].content | b64decode }}"
+
+    # --- decommission ------------------------------------------------------------------
+    - name: Decommission every fixture app
+      ansible.builtin.include_role:
+        name: systemd_app
+      vars:
+        systemd_app_state: absent
+        systemd_app_kind: "{{ molecule_app.kind }}"
+        systemd_app_name: "{{ molecule_app.name }}"
+      loop: "{{ molecule_fixture_apps }}"
+      loop_control:
+        loop_var: molecule_app
+        label: "{{ molecule_app.name }}"
+
+    - name: Stat everything the fixture apps owned
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /var/app/molsource
+        - /var/app/molinline
+        - /etc/containers/systemd/molsource.container
+        - /etc/containers/systemd/molinline.container
+        - /etc/containers/systemd/molecule.network
+        - /var/app/molproxy/config/conf.d/molsource.caddy
+        - /var/app/molproxy/config/conf.d/molinline.caddy
+      register: molecule_after_absent
+
+    - name: Ask systemd for the state of the decommissioned units
+      ansible.builtin.command:
+        argv: [systemctl, is-active, "{{ item }}"]
+      loop:
+        - molsource.service
+        - molinline.service
+      changed_when: false
+      failed_when: false
+      register: molecule_absent_units
+
+    - name: Assert nothing the apps owned is left on the host
+      ansible.builtin.assert:
+        that:
+          - molecule_after_absent.results | selectattr('stat.exists') | list | length == 0
+          - molecule_absent_units.results | selectattr('stdout', 'equalto', 'active')
+            | list | length == 0
+        fail_msg: >-
+          Left behind:
+          {{ molecule_after_absent.results | selectattr('stat.exists')
+             | map(attribute='item') | list }}; still active:
+          {{ molecule_absent_units.results | selectattr('stdout', 'equalto', 'active')
+             | map(attribute='item') | list }}.
+        quiet: true
+
+    # A decommission works from the manifest on the host, which the first pass took with
+    # it, so the second has nothing to read and must still succeed — a failure here is a
+    # task that assumes the app is still there.
+    - name: Decommission every fixture app again
+      ansible.builtin.include_role:
+        name: systemd_app
+      vars:
+        systemd_app_state: absent
+        systemd_app_kind: "{{ molecule_app.kind }}"
+        systemd_app_name: "{{ molecule_app.name }}"
+      loop: "{{ molecule_fixture_apps }}"
+      loop_control:
+        loop_var: molecule_app
+        label: "{{ molecule_app.name }}"

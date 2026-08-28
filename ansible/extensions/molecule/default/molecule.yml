@@ -1,0 +1,64 @@
+---
+# The systemd_app role writes Quadlet files, drives systemctl and calls podman as root,
+# so the target has to be a host with systemd as PID 1 and podman on it — nothing about
+# the role can be exercised against a plain container. Hence one privileged container
+# running /sbin/init, with podman inside it (see Dockerfile.j2).
+driver:
+  name: podman
+
+platforms:
+  - name: systemd-app
+    image: quay.io/fedora/fedora:41
+    # Built from Dockerfile.j2 rather than pulled ready-made: the base image ships
+    # neither systemd nor podman nor python3, and all three are preconditions here.
+    pre_build_image: false
+    # Podman turns on its systemd mode when the command is an init, which is what mounts
+    # /run and sets up the cgroup hierarchy the units below need.
+    command: /sbin/init
+    # Rootful podman inside a container needs it: mount, cgroup and namespace operations
+    # that no capability set short of privileged allows. The container is throwaway.
+    privileged: true
+
+provisioner:
+  name: ansible
+  env:
+    # This scenario sits outside ansible/, so ansible.cfg's roles_path and filter_plugins
+    # do not apply. Pointed at the same two directories here instead — the role resolves
+    # its own filters (secret_digests, systemd_env_lines, ...) through the second one.
+    ANSIBLE_ROLES_PATH: ${MOLECULE_PROJECT_DIRECTORY}/../roles
+    ANSIBLE_FILTER_PLUGINS: ${MOLECULE_PROJECT_DIRECTORY}/../filter_plugins
+  inventory:
+    group_vars:
+      all:
+        # The fixture apps tree, copied out of the scenario by prepare.yml so the
+        # side-effect play can drop a file from it without touching the repository.
+        molecule_fixture_source: "{{ lookup('ansible.builtin.env', 'MOLECULE_SCENARIO_DIRECTORY') }}/apps"
+        molecule_apps_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/apps"
+        # A few megabytes, and already on the host by the time any unit starts (prepare.yml
+        # pulls it), so a registry hiccup fails the run before the role is under test.
+        molecule_image: quay.io/libpod/alpine:latest
+
+        # The role's inputs that name the consumer's fleet rather than an app. Set here,
+        # once, exactly as a consuming play sets them.
+        systemd_app_apps_dir: "{{ molecule_apps_dir }}"
+        # No netavark in the critical path: see apps/molsource/quadlet/molsource.container.
+        systemd_app_network: none
+        # Somewhere to write route snippets that is not a real reverse proxy's config tree.
+        systemd_app_caddy_confd: /var/app/molproxy/config/conf.d
+
+# verify runs before side_effect, unlike the default sequence: verify asserts what a
+# converge leaves behind, and side_effect then walks the app through the rest of its
+# lifecycle — prune, kind flip, decommission — asserting each step as it goes.
+scenario:
+  test_sequence:
+    - destroy
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - side_effect
+    - destroy
+
+verifier:
+  name: ansible

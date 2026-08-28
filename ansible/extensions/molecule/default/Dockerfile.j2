@@ -1,0 +1,17 @@
+# The scenario's target host: systemd as PID 1, podman inside it, python3 for Ansible.
+FROM {{ item.image }}
+
+RUN dnf -y install systemd podman python3 procps-ng \
+ && dnf clean all \
+ && rm -rf /var/cache/dnf
+
+# Units that have nothing to manage in a container and only fail loudly if left enabled.
+RUN systemctl mask systemd-udevd.service systemd-udev-trigger.service \
+      getty.target console-getty.service systemd-remount-fs.service
+
+# Overlay on top of the outer container's overlay would need fuse-overlayfs and
+# /dev/fuse; vfs needs neither and the images this pulls are a few megabytes.
+RUN printf '[storage]\ndriver = "vfs"\n' > /etc/containers/storage.conf
+
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]

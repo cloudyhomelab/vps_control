@@ -1,0 +1,20 @@
+# Fixture: the minimum a 'source' app's Quadlet needs to become a running service.
+# Network=none deliberately — the point of the fixture is that the role installs this
+# file and records it, and joining a podman network would put netavark in the critical
+# path of every scenario run for no extra coverage of the role.
+[Unit]
+Description=Molecule fixture source container
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=quay.io/libpod/alpine:latest
+ContainerName=molsource
+Network=none
+Exec=sleep infinity
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target default.target

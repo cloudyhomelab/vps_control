@@ -1,0 +1,41 @@
+---
+# A consumer's play, in miniature: the fleet-wide inputs come from group_vars (see
+# molecule.yml), each app's own from the role call. Both kinds are here, and the
+# 'source' app ships one of everything it can ship — a Quadlet, a plain unit, and a
+# nested config tree — because what the manifest records is what the next deploy prunes.
+- name: Converge
+  hosts: all
+  become: true
+  gather_facts: true
+
+  roles:
+    # First, so the network unit exists before anything that might reference it.
+    - role: systemd_app
+      systemd_app_kind: source
+      systemd_app_name: molnet
+
+    - role: systemd_app
+      systemd_app_kind: source
+      systemd_app_name: molsource
+      systemd_app_enable_units:
+        - molsource.service
+        - molsource-extra.service
+      systemd_app_domain: molsource.molecule.test
+
+    - role: systemd_app
+      systemd_app_kind: inline
+      systemd_app_name: molinline
+      systemd_app_description: Molecule fixture inline container
+      systemd_app_image: "{{ molecule_image }}"
+      systemd_app_domain: molinline.molecule.test
+      # A value with a space, so the rendered unit exercises the quoting in
+      # systemd_env_lines rather than only the trivial path through it.
+      systemd_app_env:
+        MOLECULE_GREETING: hello world
+      systemd_app_container_options:
+        - Exec=sleep infinity
+      systemd_app_data_dirs:
+        - path: data
+          owner: "10001"
+          group: "10001"
+          mode: "0700"
