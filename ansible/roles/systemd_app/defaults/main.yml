@@ -2,7 +2,7 @@
 # systemd_app_kind selects the deployment model and is REQUIRED at every call
 # site (deliberately no default, so the mode is always explicit):
 #   source -> install an app's files from a controller directory (see below).
-#   simple -> render a single-container Quadlet from inline params (image, env,
+#   inline -> render a single-container Quadlet from call-site params (image, env,
 #             volumes, ...) with no source directory. See README.
 
 # Lifecycle: 'present' deploys the app and starts its units, dropping any file a
@@ -18,7 +18,7 @@ systemd_app_state: present
 #   config/             -> arbitrary config tree, copied recursively to the host
 #   secrets.sops.yaml   -> SOPS-encrypted podman secrets (see below)
 # The first three belong to the 'source' kind; the secrets file is read for either kind, so
-# a 'simple' app with secrets has a directory holding just that.
+# an 'inline' app with secrets has a directory holding just that.
 systemd_app_apps_dir: "{{ playbook_dir }}/../apps"
 
 # Destinations on the target host.
@@ -32,7 +32,7 @@ systemd_app_root: /var/app                        # each app's home: {{ root }}/
 systemd_app_home: "{{ systemd_app_root }}/{{ systemd_app_name }}"
 
 # Where an app records the host paths it installed — a 'source' app's Quadlet files,
-# systemd units and config tree, a 'simple' app's one rendered Quadlet. Both a later
+# systemd units and config tree, an 'inline' app's one rendered Quadlet. Both a later
 # deploy (to drop files it no longer installs) and decommission read this manifest
 # instead of re-deriving from the controller's apps/<name>/ tree, which by then may name
 # different files or be gone. Recorded for both kinds so that converting an app from one
@@ -64,13 +64,13 @@ systemd_app_dir_mode: "0755"
 systemd_app_caddy_confd: /var/app/reverse_proxy/config/conf.d
 
 # Route target when systemd_app_domain is set. The upstream defaults to the app
-# name (the common case where ContainerName matches, including every 'simple'
+# name (the common case where ContainerName matches, including every 'inline'
 # app), but an app whose routable container is named differently overrides
 # systemd_app_upstream.
 systemd_app_port: 8080                       # internal upstream port for the Caddy route
 systemd_app_upstream: "{{ systemd_app_name }}"   # upstream host (container name on the shared network)
 
-# 'simple'-kind defaults for the rendered single container. Override at the call
+# 'inline'-kind defaults for the rendered single container. Override at the call
 # site as needed; ignored by 'source'-kind apps (they declare these in their own
 # Quadlet files).
 systemd_app_network: web.network             # shared network the container joins
@@ -88,8 +88,8 @@ systemd_app_service_options: []              # extra raw [Service] lines
 # outside the three directories this role installs from, so nothing copies it to the host.
 # Nothing sensitive is stored in a file this role installs either: a unit file is
 # world-readable by design, which is what makes Environment= the wrong home for a secret.
-# Names are host-global, so prefix them with the app name to keep two apps apart. A
-# 'simple' app gets its Secret= lines rendered from these names, the variable being the
+# Names are host-global, so prefix them with the app name to keep two apps apart. An
+# 'inline' app gets its Secret= lines rendered from these names, the variable being the
 # name upper-cased with dashes as underscores; a 'source' app writes the line itself and
 # can point it at any variable. See ansible/SECRETS.md.
 systemd_app_secrets_file: "{{ systemd_app_apps_dir }}/{{ systemd_app_name }}/secrets.sops.yaml"
@@ -122,7 +122,7 @@ systemd_app_secret_digests: "{{ systemd_app_secret_values | secret_digests }}"
 #     owner: "10001"        # the image's non-root user, by numeric id
 systemd_app_data_dirs: []
 
-# Healthcheck policy for a 'simple' app. The probe itself cannot have a useful default
+# Healthcheck policy for an 'inline' app. The probe itself cannot have a useful default
 # — an HTTP app wants a request, Postgres wants pg_isready — so it comes from the call
 # site, and the rest of the block is fleet policy set once here. Naming a command turns
 # on Notify=healthy, which is what makes a bad image a failed start that
@@ -136,25 +136,25 @@ systemd_app_health_start_period: 60s
 # hard limit, which is tight for a cold start and would roll back a good image.
 systemd_app_start_timeout: 180
 
-# Units this role starts/enables (present) and stops (absent). A 'simple' app
+# Units this role starts/enables (present) and stops (absent). An 'inline' app
 # renders exactly one <name>.service, so default to that when the caller names
 # none; a 'source' app starts nothing unless it lists units (boot comes from the
 # Quadlet [Install] section, e.g. the network-only 'shared' app has no service).
 systemd_app_managed_units: >-
   {{ (systemd_app_enable_units | default([]))
      if (systemd_app_enable_units | default([]) | length > 0)
-     else ([systemd_app_name ~ '.service'] if systemd_app_kind == 'simple' else []) }}
+     else ([systemd_app_name ~ '.service'] if systemd_app_kind == 'inline' else []) }}
 
 # --- Per-invocation parameters (passed as role params, see README) -------
-# systemd_app_kind:         REQUIRED — 'source' (files from a dir) or 'simple' (rendered container).
-# systemd_app_name:         REQUIRED — app dir name (source) / container name + Quadlet basename (simple).
+# systemd_app_kind:         REQUIRED — 'source' (files from a dir) or 'inline' (rendered container).
+# systemd_app_name:         REQUIRED — app dir name (source) / container name + Quadlet basename (inline).
 # systemd_app_state:        optional — present (default) deploys; absent decommissions.
 # systemd_app_enable_units: optional — systemd unit names to enable at boot and start now.
 # systemd_app_domain:       optional — public hostname; when set, a Caddy route is added.
 # systemd_app_upstream:     optional — upstream container name (default systemd_app_name).
 # systemd_app_port:         optional — upstream port (default 8080).
-# --- 'simple'-kind only ---
-# systemd_app_image:        REQUIRED for simple+present — full image ref, e.g. docker.io/org/app:latest.
+# --- 'inline'-kind only ---
+# systemd_app_image:        REQUIRED for inline+present — full image ref, e.g. docker.io/org/app:latest.
 # systemd_app_description:  optional — unit description (default "<name> container").
 # systemd_app_network/env/volumes/publish_ports: optional — see defaults above.
 # systemd_app_container_options/service_options: optional — raw lines for the

@@ -2,7 +2,7 @@
 # Secrets: an app that needs any ships apps/<app>/secrets.sops.yaml, keyed by the podman
 # secret names. Found rather than declared, like the app's quadlet/ and config/
 # directories, so that file is the only place the set is written down. First in the file
-# because a 'simple' app's Quadlet is rendered from those names below.
+# because an 'inline' app's Quadlet is rendered from those names below.
 - name: "Check for encrypted secrets of app {{ systemd_app_name }}"
   ansible.builtin.stat:
     path: "{{ systemd_app_secrets_file }}"
@@ -40,16 +40,16 @@
     that:
       # Passed to `podman secret` as root, and useful only if a Quadlet can reference it.
       - item.key is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
-      # A 'simple' app's Secret= line is rendered from this key, so the key also has to
+      # An 'inline' app's Secret= line is rendered from this key, so the key also has to
       # spell a legal environment variable once upper-cased — no dots, no leading digit.
-      - systemd_app_kind != 'simple' or item.key is match('^[A-Za-z][A-Za-z0-9-]*$')
+      - systemd_app_kind != 'inline' or item.key is match('^[A-Za-z][A-Za-z0-9-]*$')
       # Refused here rather than at container start, where an empty value surfaces as the
       # app failing to boot with no explanation of why.
       - item.value is not none and (item.value | string | length > 0)
     fail_msg: >-
       {{ systemd_app_name }}/secrets.sops.yaml must map podman secret names (letters,
-      digits, dot, dash or underscore, not starting with a dot) to non-empty values. For a
-      'simple' app the name is also the variable the container sees, upper-cased with
+      digits, dot, dash or underscore, not starting with a dot) to non-empty values. For an
+      'inline' app the name is also the variable the container sees, upper-cased with
       dashes as underscores, so it is limited to letters, digits and dashes.
     quiet: true
   loop: "{{ systemd_app_secret_values | dict2items }}"
@@ -57,22 +57,22 @@
     label: "{{ item.key }}"
   no_log: true
 
-# 'simple' kind: render the single-container Quadlet from inline params. 'source'
+# 'inline' kind: render the single-container Quadlet from call-site params. 'source'
 # kind installs its container from a file instead (the copy tasks below).
 - name: "Render Quadlet for container {{ systemd_app_name }}"
   ansible.builtin.template:
-    src: simple.container.j2
+    src: inline.container.j2
     dest: "{{ systemd_app_system_dir }}/{{ systemd_app_name }}.container"
     owner: "{{ systemd_app_owner }}"
     group: "{{ systemd_app_group }}"
     mode: "{{ systemd_app_file_mode }}"
-  when: systemd_app_kind == 'simple'
+  when: systemd_app_kind == 'inline'
   register: systemd_app_quadlet_render
   notify: Reload systemd
 
 # What the last deploy installed, so the files below can be reconciled against it. Read
 # for either kind, and that is what makes a change of kind converge: the paths recorded
-# by a 'source' deploy are exactly what the 'simple' one it became has to prune, and the
+# by a 'source' deploy are exactly what the 'inline' one it became has to prune, and the
 # other way round.
 - name: "Read recorded install manifest for app {{ systemd_app_name }}"
   ansible.builtin.include_tasks: read-manifest.yml
@@ -134,7 +134,7 @@
     mode: "{{ systemd_app_file_mode }}"
     directory_mode: "{{ systemd_app_dir_mode }}"
   when:
-    # Shipping files from the repo is what makes an app 'source'; a 'simple' app is
+    # Shipping files from the repo is what makes an app 'source'; an 'inline' app is
     # defined entirely at the call site and has no config tree to copy.
     - systemd_app_kind == 'source'
     - systemd_app_config_dir.stat.exists
@@ -142,7 +142,7 @@
   register: systemd_app_config_deploy
 
 # Every host path this deploy just installed. For 'source': the two flat install dirs by
-# basename, plus the config tree with its relative layout preserved. For 'simple': the one
+# basename, plus the config tree with its relative layout preserved. For 'inline': the one
 # rendered Quadlet. Derived in one place so the prune below and the recorded manifest
 # cannot disagree about the set.
 #
@@ -152,10 +152,10 @@
 - name: "Collect installed paths for app {{ systemd_app_name }}"
   ansible.builtin.set_fact:
     systemd_app_installed_paths: >-
-      {{ systemd_app_simple_installed_paths if systemd_app_kind == 'simple'
+      {{ systemd_app_inline_installed_paths if systemd_app_kind == 'inline'
          else systemd_app_source_installed_paths }}
   vars:
-    systemd_app_simple_installed_paths:
+    systemd_app_inline_installed_paths:
       - "{{ systemd_app_system_dir }}/{{ systemd_app_name }}.container"
     systemd_app_source_installed_paths: >-
       {{ ([systemd_app_system_dir] | product(systemd_app_source_quadlet_files | map('basename') | list) | map('join', '/') | list)

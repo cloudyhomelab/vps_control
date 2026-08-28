@@ -26,7 +26,7 @@
     # Every routed app follows reverse_proxy: registering a route writes into the state
     # directory caddy.service mounts, so the proxy is converged before anything adds to it.
     - role: systemd_app
-      systemd_app_kind: simple
+      systemd_app_kind: inline
       systemd_app_name: calculators
       systemd_app_description: Calculators web app
       systemd_app_image: docker.io/binarycodes/calculators:latest
@@ -36,7 +36,7 @@
       systemd_app_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
 
     - role: systemd_app
-      systemd_app_kind: simple
+      systemd_app_kind: inline
       systemd_app_name: nasplan
       systemd_app_image: docker.io/binarycodes/make-my-nas:latest
       systemd_app_port: 8080

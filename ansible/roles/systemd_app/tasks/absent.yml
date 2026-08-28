@@ -25,7 +25,7 @@
     - "'not loaded' not in (systemd_app_stop_result.msg | default('') | lower)"
     - "'could not find' not in (systemd_app_stop_result.msg | default('') | lower)"
 
-# Kept alongside the manifest removal below, rather than folded into it: a 'simple' app
+# Kept alongside the manifest removal below, rather than folded into it: an 'inline' app
 # last deployed before the role recorded manifests for that kind has none, and its
 # rendered Quadlet would otherwise be left behind on the host forever. Removing a path
 # that is already gone is a no-op, so the overlap costs nothing.
@@ -33,7 +33,7 @@
   ansible.builtin.file:
     path: "{{ systemd_app_system_dir }}/{{ systemd_app_name }}.container"
     state: absent
-  when: systemd_app_kind == 'simple'
+  when: systemd_app_kind == 'inline'
   notify: Reload systemd
 
 - name: "Read recorded install manifest for app {{ systemd_app_name }}"

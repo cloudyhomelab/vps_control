@@ -4,7 +4,7 @@
 # app, or one last deployed before the role recorded a manifest for its kind. Included by
 # present.yml, which prunes the recorded paths it no longer installs, and by absent.yml,
 # which removes all of them. Read for either kind, so the record a 'source' deploy wrote
-# is still what gets reconciled after the app is converted to 'simple', and vice versa.
+# is still what gets reconciled after the app is converted to 'inline', and vice versa.
 
 - name: "Stat install manifest for app {{ systemd_app_name }}"
   ansible.builtin.stat:

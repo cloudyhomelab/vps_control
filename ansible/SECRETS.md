@@ -1,7 +1,7 @@
 # App secrets
 
-An app that needs secrets ships one SOPS-encrypted file in its own directory — for a
-`simple` app that file is all the directory holds:
+An app that needs secrets ships one SOPS-encrypted file in its own directory — for an
+`inline` app that file is all the directory holds:
 
 ```
 apps/whichday/
@@ -55,7 +55,7 @@ provider's audit log. Nothing else changes: not this layout, not the playbook, n
    pointing at a name that is not there makes the container fail to start.
 
 Either kind can do this. A `source` app references the secret from its own Quadlet, so the
-name and the variable are independent. A `simple` app has its `Secret=` line rendered for
+name and the variable are independent. An `inline` app has its `Secret=` line rendered for
 it, with the variable derived from the name — upper-cased, dashes as underscores — so there
 the name must be the variable the image reads, spelled in lower case with dashes
 (`whichday-oidc-client-secret` → `WHICHDAY_OIDC_CLIENT_SECRET`). An image insisting on a

@@ -5,8 +5,8 @@ galaxy_info:
   description: >-
     Deploy or decommission one app behind the reverse proxy: either install its
     Podman Quadlet files, systemd units, and config from a source directory
-    (kind=source), or render a single-container Quadlet from inline params
-    (kind=simple). Optionally registers a Caddy route.
+    (kind=source), or render a single-container Quadlet from call-site params
+    (kind=inline). Optionally registers a Caddy route.
   license: MIT
   min_ansible_version: "2.14"
   platforms:

@@ -3,7 +3,7 @@
 Deploys (or decommissions) a **single** app behind the reverse proxy, plus an
 optional Caddy route. Invoke it once per app. Two required selectors drive it:
 
-- **`systemd_app_kind`** — `source` or `simple` (see below). **Required, no default.**
+- **`systemd_app_kind`** — `source` or `inline` (see below). **Required, no default.**
 - **`systemd_app_state`** — `present` (default) deploys; `absent` decommissions.
 
 ## Kinds
@@ -23,12 +23,12 @@ apps/
     secrets.sops.yaml   # SOPS-encrypted podman secrets                        (optional)
 ```
 
-A `simple` app has no such directory, except when it needs secrets: then it holds that one
+An `inline` app has no such directory, except when it needs secrets: then it holds that one
 file and nothing else.
 
 Each subdirectory is optional — an app may ship only a Quadlet, only config, etc.
 
-### `simple` — render a single container
+### `inline` — render a single container
 
 For the common "one image behind the reverse proxy" case, the role renders a
 single `<name>.container` Quadlet from inline parameters — no source directory
@@ -40,7 +40,7 @@ needed. Just give it an image (and usually a domain). The container is named
 
 ### `present` (default)
 
-1. **`simple`**: renders `<name>.container` to `/etc/containers/systemd/`.
+1. **`inline`**: renders `<name>.container` to `/etc/containers/systemd/`.
    **`source`**: copies `<app>/quadlet/*` there and `<app>/unit/*` to
    `/etc/systemd/system/`, then copies `<app>/config/` to `/var/app/<app>/config/`.
    Either way, every host path installed is recorded in an
@@ -86,8 +86,8 @@ duplicates per week.
 
 | Param                      | Required        | Purpose                                                       |
 | -------------------------- | --------------- | ------------------------------------------------------------- |
-| `systemd_app_kind`         | yes             | `source` (files from a dir) or `simple` (rendered container). |
-| `systemd_app_name`         | yes             | `source`: app dir name. `simple`: container name / DNS name.  |
+| `systemd_app_kind`         | yes             | `source` (files from a dir) or `inline` (rendered container). |
+| `systemd_app_name`         | yes             | `source`: app dir name. `inline`: container name / DNS name.  |
 | `systemd_app_state`        | no              | `present` (default) deploys; `absent` decommissions.          |
 | `systemd_app_enable_units` | no              | systemd unit names to enable and start (see below).           |
 | `systemd_app_domain`       | no              | Public hostname; when set, a Caddy route is added.            |
@@ -95,11 +95,11 @@ duplicates per week.
 | `systemd_app_port`         | no              | Upstream port for the Caddy route (default `8080`).           |
 | `systemd_app_data_dirs`    | no              | Bind-mount dirs to pre-create with a given owner (see below). |
 
-### `simple`-kind parameters
+### `inline`-kind parameters
 
 | Param                       | Required             | Purpose                                            |
 | --------------------------- | -------------------- | -------------------------------------------------- |
-| `systemd_app_image`         | yes (simple+present) | Full image ref, e.g. `docker.io/org/app:latest`.   |
+| `systemd_app_image`         | yes (inline+present) | Full image ref, e.g. `docker.io/org/app:latest`.   |
 | `systemd_app_description`   | no                   | Unit description (default `<name> container`).     |
 | `systemd_app_network`       | no                   | Network the container joins (default `web.network`). |
 | `systemd_app_env`           | no                   | Env vars rendered as `Environment=` lines.         |
@@ -139,7 +139,7 @@ and prune every file the last one recorded (see [install manifest](#install-mani
 
 A deploy records the absolute host paths it installed to
 `/var/app/<app>/.install-manifest`, one per line — a `source` app's Quadlet files,
-systemd units and every file of its config tree, a `simple` app's one rendered
+systemd units and every file of its config tree, an `inline` app's one rendered
 `<name>.container`. It sits inside the app's own home so the two share
 fate: `absent` drops that tree and the manifest goes with it, and a hand-removed or
 restored `/var/app/<app>` cannot leave a stale record behind. Both a later deploy and a decommission work from that
@@ -160,10 +160,10 @@ those paths. Dropping `/var/app/<app>` alone would leave them behind, and the ge
 would recreate the service on the next `daemon-reload`.
 
 **Changing an app's kind converges on it.** Both kinds record a manifest and both
-reconcile against it, so flipping `systemd_app_kind` between `source` and `simple` —
+reconcile against it, so flipping `systemd_app_kind` between `source` and `inline` —
 keeping the name — prunes whatever the old kind installed and the new one does not. A
-`source` app that shipped a sidecar Quadlet, a `.timer` and a config tree becomes a
-`simple` app whose only installed path is the rendered `<name>.container`, and the other
+`source` app that shipped a sidecar Quadlet, a `.timer` and a config tree becomes an
+`inline` app whose only installed path is the rendered `<name>.container`, and the other
 three are removed on that converge. The one thing to do by hand is the running units: a
 unit whose file is pruned keeps running until it is stopped or the host reboots (see
 below), so stop the ones the app no longer ships, once.
@@ -181,7 +181,7 @@ to a change of kind as much as to a deleted file.
 
 An app last deployed before the role recorded a manifest for its kind has none, so its
 first converge under this role prunes nothing and records one — the reconciliation starts
-from the next deploy. `absent` covers the gap for a `simple` app in that state by also
+from the next deploy. `absent` covers the gap for an `inline` app in that state by also
 removing the rendered `<name>.container` by name.
 
 ## Caddy routing
@@ -192,7 +192,7 @@ snippet (`domain → upstream:port`) into `systemd_app_caddy_confd`, which the
 Caddyfile imports via `import /etc/caddy/conf.d/*.caddy`. The deploy playbook
 reloads Caddy once as a post-task, so the route applies after all apps converge.
 
-`systemd_app_upstream` defaults to `systemd_app_name` — correct for every `simple`
+`systemd_app_upstream` defaults to `systemd_app_name` — correct for every `inline`
 app (the container *is* `<name>`) and for `source` apps whose `ContainerName=`
 matches the app name. Override it when a `source` app's routable container is
 named differently. On `absent`, the role removes the `<name>.caddy` snippet it
@@ -216,8 +216,8 @@ generator rewrites the `.service` at `daemon-reload`, but systemd does not act o
 merely re-read, and podman reads a secret only when it *creates* a container — so the
 running one carries on with the image, options and values it started with. The role
 therefore **restarts** the app's managed units when this deploy changed a file that defines
-them: anything installed from `quadlet/` or `unit/`, or the rendered `<name>.container` of a
-`simple` app.
+them: anything installed from `quadlet/` or `unit/`, or the rendered `<name>.container` of an
+`inline` app.
 
 **A changed config tree only needs the process told.** The files are bind-mounted, so they
 are already in place. The role **reloads** the managed units instead, which is why config
@@ -252,7 +252,7 @@ healthcheck a container that boots and then serves errors counts as started, so 
 image stays. `Notify=healthy` closes that gap: systemd withholds "started" until the
 first probe passes, which turns a broken image into a failed start that gets rolled back.
 
-For a `simple` app, set `systemd_app_health_cmd` and the role emits the whole block —
+For an `inline` app, set `systemd_app_health_cmd` and the role emits the whole block —
 `HealthCmd`, `HealthInterval`, `HealthRetries`, `HealthStartPeriod`, `Notify=healthy`,
 and a matching `TimeoutStartSec`. Only the command is per-app, because nothing else can
 be: an HTTP app wants a request, Postgres wants `pg_isready`. Everything around it is
@@ -260,7 +260,7 @@ fleet policy in `defaults/main.yml` and rarely needs overriding.
 
 ```yaml
     - role: systemd_app
-      systemd_app_kind: simple
+      systemd_app_kind: inline
       systemd_app_name: nasplan
       systemd_app_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
 ```
@@ -297,7 +297,7 @@ installs from, so nothing copies it to the host.
 
 How the container reaches a stored value differs by kind:
 
-**`simple`** — the role renders the reference, deriving the variable from the name:
+**`inline`** — the role renders the reference, deriving the variable from the name:
 upper-cased, dashes as underscores. The file above yields
 
 ```ini
@@ -391,7 +391,7 @@ would survive.
 ## Unit names and boot persistence
 
 The role starts/enables its **managed units**: `systemd_app_enable_units` if you
-list any, otherwise — for a `simple` app — the single generated `<name>.service`.
+list any, otherwise — for an `inline` app — the single generated `<name>.service`.
 A `source` app that lists none starts nothing and relies entirely on its
 `[Install]` section (e.g. the network-only `shared` app).
 
@@ -427,11 +427,11 @@ A `source` app with a Caddy route:
       systemd_app_domain: whichday.cloudyhome.org
 ```
 
-A `simple` app — one image behind the reverse proxy, no source dir:
+An `inline` app — one image behind the reverse proxy, no source dir:
 
 ```yaml
     - role: systemd_app
-      systemd_app_kind: simple
+      systemd_app_kind: inline
       systemd_app_name: nasplan
       systemd_app_image: docker.io/binarycodes/make-my-nas:latest
       systemd_app_port: 8080
@@ -444,7 +444,7 @@ This destroys `/var/app/<app>` — back it up first:
 ```yaml
     - role: systemd_app
       systemd_app_state: absent
-      systemd_app_kind: simple
+      systemd_app_kind: inline
       systemd_app_name: whoami
 ```
 

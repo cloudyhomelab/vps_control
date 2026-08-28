@@ -2,7 +2,7 @@
 # Deploys (state=present) or decommissions (state=absent) one app. Two kinds:
 #   source -> install Quadlet files, systemd units, and a config tree from a
 #             controller directory ({{ systemd_app_apps_dir }}/<name>/).
-#   simple -> render a single-container Quadlet from inline params (image, env, ...).
+#   inline -> render a single-container Quadlet from call-site params (image, env, ...).
 # Both kinds optionally register a Caddy route. See README + defaults/main.yml.
 
 - name: Validate role input
@@ -15,13 +15,13 @@
       # a slash or a leading dot would let that delete escape the app's own directory.
       - systemd_app_name is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
       - systemd_app_kind is defined
-      - systemd_app_kind in ['source', 'simple']
-      # 'simple' renders from an image, so present requires one (absent does not).
-      - systemd_app_kind != 'simple' or systemd_app_state == 'absent' or (systemd_app_image is defined and (systemd_app_image | string | length > 0))
+      - systemd_app_kind in ['source', 'inline']
+      # 'inline' renders from an image, so present requires one (absent does not).
+      - systemd_app_kind != 'inline' or systemd_app_state == 'absent' or (systemd_app_image is defined and (systemd_app_image | string | length > 0))
     fail_msg: >-
       The 'systemd_app' role requires 'systemd_app_name' (letters, digits, dot, dash
-      or underscore, not starting with a dot) and 'systemd_app_kind' (source|simple);
-      a 'simple' app being deployed (state=present) also requires 'systemd_app_image'.
+      or underscore, not starting with a dot) and 'systemd_app_kind' (source|inline);
+      an 'inline' app being deployed (state=present) also requires 'systemd_app_image'.
     quiet: true
 
 # The values checked below are interpolated into files this role generates rather than
@@ -64,7 +64,7 @@
          systemd_app_container_options, systemd_app_service_options) }}
   when:
     - systemd_app_state == 'present'
-    - systemd_app_kind == 'simple'
+    - systemd_app_kind == 'inline'
 
 # A 'source' app installs from this directory, and every variable that reads it
 # (systemd_app_source_quadlet_files and its two siblings) is a fileglob, which returns an
