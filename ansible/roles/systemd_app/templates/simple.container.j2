@@ -9,7 +9,7 @@ ContainerName={{ systemd_app_name }}
 AutoUpdate=registry
 Network={{ systemd_app_network }}
 {# Quoting and escaping live in systemd_env_lines, where they are tested; see
-   filter_plugins/application.py for the systemd rules they follow. #}
+   filter_plugins/systemd_app.py for the systemd rules they follow. #}
 {% for line in systemd_app_env | systemd_env_lines %}
 {{ line }}
 {% endfor %}

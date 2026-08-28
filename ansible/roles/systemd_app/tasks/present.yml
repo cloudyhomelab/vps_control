@@ -264,7 +264,7 @@
 
 # Storing is create-only, so what changed has to be worked out first — from three inputs:
 # what this app declares, what it last stored, and what the host still holds. The rules are
-# reconcile_secrets', with the cases spelled out in tests/test_application_filters.py.
+# reconcile_secrets', with the cases spelled out in tests/test_systemd_app_filters.py.
 # Digests and names only reach the fact; no value does, and the deploy is verbose enough to
 # print what it sets.
 - name: "Reconcile recorded secrets of app {{ systemd_app_name }}"

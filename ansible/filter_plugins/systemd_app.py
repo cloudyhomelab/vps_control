@@ -1,9 +1,9 @@
-"""Pure functions behind the 'application' role's Jinja filters.
+"""Pure functions behind the 'systemd_app' role's Jinja filters.
 
 Every function here replaces a filter chain that used to live inside a YAML scalar. The
 move is not cosmetic: a set difference over a dict of digests, or a regex allowlist for a
 hostname, is an algorithm, and an algorithm belongs somewhere it can be read, reviewed and
-unit-tested. tests/test_application_filters.py exercises all of it directly, which is what
+unit-tested. tests/test_systemd_app_filters.py exercises all of it directly, which is what
 makes a table of edge cases cheap — verifying the same logic in Jinja meant generating a
 playbook and running it.
 

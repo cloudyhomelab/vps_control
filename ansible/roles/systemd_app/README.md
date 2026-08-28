@@ -451,8 +451,8 @@ This destroys `/var/app/<app>` — back it up first:
 ## Where the logic lives
 
 The role's two pieces of real computation are Python, not Jinja: the secret reconcile and
-the input validation are functions in `ansible/filter_plugins/application.py`, exposed as
+the input validation are functions in `ansible/filter_plugins/systemd_app.py`, exposed as
 the `app_*` filters this role calls. They moved there to be testable —
-`ansible/tests/test_application_filters.py` covers them case by case, and CI runs it before
+`ansible/tests/test_systemd_app_filters.py` covers them case by case, and CI runs it before
 the lint and the syntax check. A change to what the role *accepts*, or to how it decides
 which secrets to store, belongs in that file and its tests rather than in a YAML scalar.

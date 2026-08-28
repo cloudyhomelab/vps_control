@@ -32,7 +32,7 @@
 # failed run rather than a half-deployed app or a proxy that will not load.
 #
 # Both filters return one string per problem, so a run reports everything wrong at once
-# rather than the first thing. What each accepts, and why, is in filter_plugins/application.py.
+# rather than the first thing. What each accepts, and why, is in filter_plugins/systemd_app.py.
 - name: "Verify the route inputs of app {{ systemd_app_name }}"
   ansible.builtin.assert:
     that:

@@ -1,4 +1,4 @@
-"""Tests for the 'application' role's filters.
+"""Tests for the 'systemd_app' role's filters.
 
 These cases are the reason the logic moved out of Jinja: each one used to need a generated
 playbook and an ansible-playbook run to check.
@@ -11,7 +11,7 @@ import json
 import pytest
 from ansible.errors import AnsibleFilterError
 
-from application import (
+from systemd_app import (
     systemd_env_lines,
     container_problems,
     route_problems,
