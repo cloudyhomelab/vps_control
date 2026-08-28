@@ -3,12 +3,15 @@
 # secret names. Found rather than declared, like the app's quadlet/ and config/
 # directories, so that file is the only place the set is written down. First in the file
 # because an 'inline' app's Quadlet is rendered from those names below.
+# Skipped when systemd_app_apps_dir is unset, which only an 'inline' app can be (main.yml
+# requires it of a 'source' one): with nowhere to look, the app ships no secrets.
 - name: "Check for encrypted secrets of app {{ systemd_app_name }}"
   ansible.builtin.stat:
     path: "{{ systemd_app_secrets_file }}"
   delegate_to: localhost
   become: false
   register: systemd_app_secrets_stat
+  when: systemd_app_apps_dir is defined
 
 # Decrypted on the controller; the values reach the host only through the secret store
 # below. no_log because the result carries them and the deploy runs with -v, which prints
@@ -22,7 +25,7 @@
     return_method: facts-only
   register: systemd_app_secret_load
   no_log: true
-  when: systemd_app_secrets_stat.stat.exists
+  when: systemd_app_secrets_stat.stat.exists | default(false)
 
 # Taken from the register rather than used where the task above put it: main.yml clears
 # the per-app facts with set_fact, whose precedence beats a fact returned by a later task,

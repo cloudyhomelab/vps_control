@@ -122,18 +122,29 @@ line per list entry, which is why an entry may not contain a newline of its own.
 
 | Variable                  | Default                      | Purpose                                  |
 | ------------------------- | ---------------------------- | ---------------------------------------- |
-| `systemd_app_apps_dir`    | `{{ playbook_dir }}/../apps` | Source of `source`-kind app definitions. |
+| `systemd_app_apps_dir`    | none (required for `source`) | Source of `source`-kind app definitions. |
 | `systemd_app_system_dir`  | `/etc/containers/systemd`    | Quadlet install dir on the host.         |
 | `systemd_app_unit_dir`    | `/etc/systemd/system`        | Plain-unit install dir on the host.      |
 | `systemd_app_root`        | `/var/app`                   | Every app's home → `<root>/<app>`.       |
 | `systemd_app_caddy_confd` | `{{ systemd_app_root }}/reverse_proxy/config/conf.d` | Dir for generated route snippets. |
 
-`systemd_app_apps_dir` follows the location of the playbook you invoke, so it moves
-when the playbook does. A `source` app whose directory is not there fails the run
-before anything is installed, rather than being treated as an app that ships no
-files: the lookups that read the directory are globs and return nothing for a path
-that does not exist, so a deploy would otherwise install nothing, report success,
-and prune every file the last one recorded (see [install manifest](#install-manifest)).
+`systemd_app_apps_dir` has no default — where a fleet keeps its app definitions is a
+property of that repository, not of this role — and a `source` app fails the run without
+it. Set it once as a play variable, since every app in a play reads the same tree:
+
+```yaml
+  vars:
+    systemd_app_apps_dir: "{{ playbook_dir }}/../apps"
+```
+
+A `source` app whose directory is not under it fails the run too, before anything is
+installed, rather than being treated as an app that ships no files: the lookups that read
+the directory are globs and return nothing for a path that does not exist, so a deploy
+would otherwise install nothing, report success, and prune every file the last one
+recorded (see [install manifest](#install-manifest)).
+
+An `inline` app needs the variable only to be found by the secrets lookup below; without
+it that lookup is skipped, and the app is deployed as one that ships no secrets.
 
 ## Install manifest
 

@@ -5,6 +5,12 @@
   gather_facts: true
 
   vars:
+    # Where this repository keeps its app definitions, one directory per app name —
+    # read by every 'source' app below, and by either kind's secrets lookup. The role
+    # has no default for it, the location being a property of this repository rather
+    # than of the role, so it is set once here for every app in the play.
+    systemd_app_apps_dir: "{{ playbook_dir }}/../apps"
+
     # How often `podman auto-update` checks the registry for the AutoUpdate=registry
     # containers. Every 2h is 3 manifest requests per image per 6h window, well
     # inside Docker Hub's 100-per-6h ceiling for the anonymous pulls these use.

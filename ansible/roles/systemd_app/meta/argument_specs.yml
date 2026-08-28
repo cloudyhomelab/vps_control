@@ -191,8 +191,10 @@ argument_specs:
         description: >-
           Directory on the controller holding the app definitions, one directory per
           app name — where a source app's quadlet/, unit/ and config/ are read from,
-          and where either kind's secrets.sops.yaml is looked for. Defaults to the
-          apps/ tree beside the playbook.
+          and where either kind's secrets.sops.yaml is looked for. No default.
+          Required when systemd_app_kind is source (enforced in the role, the spec
+          having no way to require an option only for a given value of another); an
+          inline app without it simply ships no secrets.
       systemd_app_system_dir:
         type: str
         required: false

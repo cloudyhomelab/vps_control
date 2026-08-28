@@ -18,10 +18,16 @@
       - systemd_app_kind in ['source', 'inline']
       # 'inline' renders from an image, so present requires one (absent does not).
       - systemd_app_kind != 'inline' or systemd_app_state == 'absent' or (systemd_app_image is defined and (systemd_app_image | string | length > 0))
+      # 'source' installs from a directory under systemd_app_apps_dir, which has no
+      # default. Checked here rather than in meta/argument_specs.yml, which can only
+      # mark an option required outright and would then fail every 'inline' app.
+      - systemd_app_kind != 'source' or (systemd_app_apps_dir is defined and (systemd_app_apps_dir | string | length > 0))
     fail_msg: >-
       The 'systemd_app' role requires 'systemd_app_name' (letters, digits, dot, dash
       or underscore, not starting with a dot) and 'systemd_app_kind' (source|inline);
-      an 'inline' app being deployed (state=present) also requires 'systemd_app_image'.
+      an 'inline' app being deployed (state=present) also requires 'systemd_app_image',
+      and a 'source' app requires 'systemd_app_apps_dir' — the directory its own
+      directory sits in, normally set once as a play variable.
     quiet: true
 
 # The values checked below are interpolated into files this role generates rather than
@@ -97,9 +103,9 @@
           'source'-kind app {{ systemd_app_name }} has no directory at
           {{ systemd_app_apps_dir }}/{{ systemd_app_name }}. Deploying it would install
           nothing and still report success, and on an app already on the host it would
-          remove every file the last deploy installed. Check systemd_app_apps_dir: its
-          default is relative to the invoked playbook's own location, so it moves when
-          the playbook does.
+          remove every file the last deploy installed. Check systemd_app_apps_dir: it
+          is normally set once as a play variable, and a value composed from
+          playbook_dir moves when the playbook does.
         quiet: true
 
 # Facts and registers both persist for the rest of the play, and this role runs once
