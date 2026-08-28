@@ -1,0 +1,62 @@
+name: Molecule
+
+# The systemd_app role's behaviour on a host: what the filters' pytest suite cannot cover
+# and a syntax check never runs. Triggered by the role, its filters and the scenario
+# itself; a converge takes minutes, so it deliberately does not gate the deploy the way
+# the lint does.
+on:
+  pull_request:
+    paths:
+      - 'ansible/roles/systemd_app/**'
+      - 'ansible/filter_plugins/**'
+      - 'ansible/extensions/molecule/**'
+      - '.github/workflows/molecule.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'ansible/roles/systemd_app/**'
+      - 'ansible/filter_plugins/**'
+      - 'ansible/extensions/molecule/**'
+      - '.github/workflows/molecule.yml'
+  workflow_dispatch:
+
+# Touches no host of ours — everything happens inside the runner — so a superseded PR
+# push is worth cancelling. Not for a push to main, where the run is the record of
+# whether that commit converges.
+concurrency:
+  group: molecule-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  molecule:
+    name: Converge the systemd_app role
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Injected into the image's own ansible-core venv, as in ansible-lint.yml: the
+      # scenario runs the role against that very core, and pip would otherwise drag in a
+      # second, collection-less one. --include-apps puts `molecule` on PATH.
+      - name: Install molecule and its podman driver
+        run: pipx inject ansible-core molecule 'molecule-plugins[podman]' --include-apps
+
+      # Both podmans in one line of output, for when a failure below turns out to be the
+      # runner image moving rather than the role changing.
+      - name: Record the podman version
+        run: sudo podman version
+
+      # sudo, so the container molecule creates belongs to a rootful podman: the scenario
+      # runs a second, rootful podman inside it, and rootful-in-rootless needs
+      # concessions (/dev/fuse, subuid ranges) that rootful-in-rootful does not.
+      # PATH is passed through `env` rather than sudo's own flag because sudoers'
+      # secure_path would otherwise replace it, and molecule lives in the runner user's
+      # pipx venv.
+      - name: Test the default scenario
+        working-directory: ansible/extensions
+        run: sudo env "PATH=$PATH" molecule test
