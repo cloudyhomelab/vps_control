@@ -32,7 +32,7 @@
     # preserved. No empty or '..' segment may appear, so the path cannot climb out
     # into another app's directory.
     systemd_app_manifest_config_re: >-
-      ^{{ (systemd_app_app_state_dir ~ '/config') | regex_escape }}/(?!(.*/)?\.\.(/|$))[^/]+(/[^/]+)*$
+      ^{{ (systemd_app_home ~ '/config') | regex_escape }}/(?!(.*/)?\.\.(/|$))[^/]+(/[^/]+)*$
     systemd_app_manifest_refused: >-
       {{ systemd_app_manifest_lines
          | reject('match', systemd_app_manifest_flat_re)
@@ -48,7 +48,7 @@
         fail_msg: >-
           Manifest {{ systemd_app_manifest_file }} lists paths outside what this role
           installs ({{ systemd_app_system_dir }}, {{ systemd_app_unit_dir }},
-          {{ systemd_app_app_state_dir }}/config): {{ systemd_app_manifest_refused }}.
+          {{ systemd_app_home }}/config): {{ systemd_app_manifest_refused }}.
           Refusing to remove anything — the manifest may be corrupt or tampered with.
         quiet: true
 

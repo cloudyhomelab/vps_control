@@ -6,7 +6,7 @@
 # The install dirs are shared with every other app, so nothing there is removed by
 # pattern: what goes is exactly the set of paths the last deploy recorded in the host
 # install manifest, whichever kind wrote it. Teardown therefore needs no controller-side
-# apps/<name>/ tree at all. {{ systemd_app_app_state_dir }} is this app's alone, so it
+# apps/<name>/ tree at all. {{ systemd_app_home }} is this app's alone, so it
 # goes wholesale. Podman named volumes and networks declared by an app's Quadlet files
 # are NOT removed — they outlive the units that created them, and Caddy's TLS
 # certificates live in one. Remove those by hand (`podman volume rm`) once you are sure.
@@ -57,25 +57,24 @@
 
 # The one task in this role that removes a directory tree, so the composed path is
 # re-checked here rather than trusted from main.yml's input validation. A name with a
-# slash or a leading dot would make this reach systemd_app_config_root itself, taking
+# slash or a leading dot would make this reach systemd_app_root itself, taking
 # every other app's config and data with it.
-- name: "Verify the state dir to remove belongs to app {{ systemd_app_name }}"
+- name: "Verify the home directory to remove belongs to app {{ systemd_app_name }}"
   ansible.builtin.assert:
     that:
       - systemd_app_name is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
-      - systemd_app_app_state_dir == systemd_app_config_root ~ '/' ~ systemd_app_name
-      - systemd_app_app_state_dir != systemd_app_config_root
+      - systemd_app_home == systemd_app_root ~ '/' ~ systemd_app_name
+      - systemd_app_home != systemd_app_root
     fail_msg: >-
-      Refusing to remove {{ systemd_app_app_state_dir }}: an app's state directory must
-      be exactly one named child of {{ systemd_app_config_root }}, and
-      '{{ systemd_app_name }}' does not compose one.
+      Refusing to remove {{ systemd_app_home }}: an app's home must be exactly one named
+      child of {{ systemd_app_root }}, and '{{ systemd_app_name }}' does not compose one.
     quiet: true
 
 # Takes the install manifest with it — it lives inside this tree — so there is no
 # separate bookkeeping to clean up.
 - name: "Remove config, data and manifest of app {{ systemd_app_name }}"
   ansible.builtin.file:
-    path: "{{ systemd_app_app_state_dir }}"
+    path: "{{ systemd_app_home }}"
     state: absent
 
 # Podman secrets are host-global, so they are not part of the tree removed above and

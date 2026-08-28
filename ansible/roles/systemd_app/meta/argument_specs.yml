@@ -114,7 +114,7 @@ argument_specs:
             type: str
             required: true
             description: >-
-              Path relative to the app's state dir (systemd_app_config_root/<app>), e.g.
+              Path relative to the app's home (systemd_app_root/<app>), e.g.
               'data'. Absolute paths and '..' are refused.
           owner:
             type: str

@@ -128,7 +128,7 @@
 - name: "Deploy config tree for app {{ systemd_app_name }}"
   ansible.builtin.copy:
     src: "{{ systemd_app_source_config_dir }}/"
-    dest: "{{ systemd_app_app_state_dir }}/config/"
+    dest: "{{ systemd_app_home }}/config/"
     owner: "{{ systemd_app_owner }}"
     group: "{{ systemd_app_group }}"
     mode: "{{ systemd_app_file_mode }}"
@@ -160,7 +160,7 @@
     systemd_app_source_installed_paths: >-
       {{ ([systemd_app_system_dir] | product(systemd_app_source_quadlet_files | map('basename') | list) | map('join', '/') | list)
          + ([systemd_app_unit_dir] | product(systemd_app_source_unit_files | map('basename') | list) | map('join', '/') | list)
-         + ([systemd_app_app_state_dir ~ '/config'] | product(systemd_app_config_found.files | default([])
+         + ([systemd_app_home ~ '/config'] | product(systemd_app_config_found.files | default([])
             | map(attribute='path') | map('relpath', systemd_app_source_config_dir) | list) | map('join', '/') | list) }}
 
 # Files the last deploy installed that this one does not: renamed, dropped from the app's
@@ -182,9 +182,9 @@
 # The config copy above creates this, but only for an app that ships a config tree. Every
 # app owns host state below it regardless: the install manifest recorded just below, and
 # for some also a bind-mounted data directory or the digests of the secrets it last stored.
-- name: "Ensure state directory exists for app {{ systemd_app_name }}"
+- name: "Ensure the home directory exists for app {{ systemd_app_name }}"
   ansible.builtin.file:
-    path: "{{ systemd_app_app_state_dir }}"
+    path: "{{ systemd_app_home }}"
     state: directory
     owner: "{{ systemd_app_owner }}"
     group: "{{ systemd_app_group }}"
@@ -200,7 +200,7 @@
     group: "{{ systemd_app_group }}"
     mode: "{{ systemd_app_file_mode }}"
 
-# Bind-mount targets the app itself writes to, named relative to the app's state dir.
+# Bind-mount targets the app itself writes to, named relative to the app's home.
 # Podman creates a missing host path as root:root, which an unprivileged container cannot
 # write in, so the directory is made here with the owner the image runs as. The deploy
 # would not notice otherwise: the mount succeeds either way, and only the app hits the
@@ -217,7 +217,7 @@
       - item.path.split('/') | intersect(['', '.', '..']) | length == 0
     fail_msg: >-
       Refusing to create '{{ item.path | default('(no path)') }}': an entry of
-      systemd_app_data_dirs names a path relative to {{ systemd_app_app_state_dir }} —
+      systemd_app_data_dirs names a path relative to {{ systemd_app_home }} —
       'data', not '/var/app/<app>/data' — and may not climb out of it with '..'.
     quiet: true
   loop: "{{ systemd_app_data_dirs }}"
@@ -226,7 +226,7 @@
 
 - name: "Ensure data directories exist for app {{ systemd_app_name }}"
   ansible.builtin.file:
-    path: "{{ systemd_app_app_state_dir }}/{{ item.path }}"
+    path: "{{ systemd_app_home }}/{{ item.path }}"
     state: directory
     owner: "{{ item.owner | default(systemd_app_owner) }}"
     group: "{{ item.group | default(systemd_app_group) }}"
@@ -379,7 +379,7 @@
              | select('match', systemd_app_config_path_prefix) | list | length > 0) }}
   vars:
     # Escaped, because it is built from a name and interpolated into a regex.
-    systemd_app_config_path_prefix: "{{ (systemd_app_app_state_dir ~ '/config/') | regex_escape }}"
+    systemd_app_config_path_prefix: "{{ (systemd_app_home ~ '/config/') | regex_escape }}"
 
 # Registered for the reload below: the module returns the unit's `systemctl show`
 # properties, so no separate probe is needed to learn whether it can reload.

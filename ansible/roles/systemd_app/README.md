@@ -125,7 +125,7 @@ line per list entry, which is why an entry may not contain a newline of its own.
 | `systemd_app_apps_dir`    | `{{ playbook_dir }}/../apps` | Source of `source`-kind app definitions. |
 | `systemd_app_system_dir`  | `/etc/containers/systemd`    | Quadlet install dir on the host.         |
 | `systemd_app_unit_dir`    | `/etc/systemd/system`        | Plain-unit install dir on the host.      |
-| `systemd_app_config_root` | `/var/app`                   | Config root → `<root>/<app>/config`.     |
+| `systemd_app_root`        | `/var/app`                   | Every app's home → `<root>/<app>`.       |
 | `systemd_app_caddy_confd` | `/var/app/reverse_proxy/config/conf.d` | Dir for generated route snippets. |
 
 `systemd_app_apps_dir` follows the location of the playbook you invoke, so it moves
@@ -140,7 +140,7 @@ and prune every file the last one recorded (see [install manifest](#install-mani
 A deploy records the absolute host paths it installed to
 `/var/app/<app>/.install-manifest`, one per line — a `source` app's Quadlet files,
 systemd units and every file of its config tree, a `simple` app's one rendered
-`<name>.container`. It sits inside the app's own state dir so the two share
+`<name>.container`. It sits inside the app's own home so the two share
 fate: `absent` drops that tree and the manifest goes with it, and a hand-removed or
 restored `/var/app/<app>` cannot leave a stale record behind. Both a later deploy and a decommission work from that
 file rather than re-deriving from `apps/<app>/`, which by then may name different files
@@ -374,14 +374,14 @@ container starts.
           group: "10001"
           mode: "0700"
       systemd_app_volumes:
-        - "{{ systemd_app_app_state_dir }}/data:/app/data"
+        - "{{ systemd_app_home }}/data:/app/data"
 ```
 
 A `source` app declares `systemd_app_data_dirs` the same way and writes the matching
 `Volume=` line in its own Quadlet, where the host path has to be spelled out in full
 (`/var/app/<app>/data:/app/data`) — a static file cannot reference the role's variables.
 
-Paths are relative to the app's own state dir, so they cannot name another app's: absolute
+Paths are relative to the app's own home, so they cannot name another app's: absolute
 paths and `..` are refused, since the role creates these as root and `absent` deletes the
 tree they live in. Which is the
 trade against a named volume: a bind mount here is backed up and restored with the rest

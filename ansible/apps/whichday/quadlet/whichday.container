@@ -12,7 +12,7 @@ Secret=whichday-oidc-issuer-uri,type=env,target=WHICHDAY_OIDC_ISSUER_URI
 Secret=whichday-oidc-client-id,type=env,target=WHICHDAY_OIDC_CLIENT_ID
 Secret=whichday-oidc-client-secret,type=env,target=WHICHDAY_OIDC_CLIENT_SECRET
 # The H2 database is a single file only one process may hold open, so this app must never
-# run as two containers. Under the app's own state dir, which means it is backed up and
+# run as two containers. Under the app's own home, which means it is backed up and
 # destroyed along with it.
 Volume=/var/app/whichday/data:/app/data
 # -f fails on 4xx and 5xx only, so the OIDC redirect an unauthenticated / answers with

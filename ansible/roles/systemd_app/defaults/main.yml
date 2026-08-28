@@ -24,12 +24,12 @@ systemd_app_apps_dir: "{{ playbook_dir }}/../apps"
 # Destinations on the target host.
 systemd_app_system_dir: /etc/containers/systemd   # Quadlet files (read by the generator)
 systemd_app_unit_dir: /etc/systemd/system         # plain systemd units
-systemd_app_config_root: /var/app                 # config lands in {{ root }}/{app}/config
+systemd_app_root: /var/app                        # each app's home: {{ root }}/{app}
 
-# Everything this app owns on the host below systemd_app_config_root: its deployed
+# Everything this app owns on the host below systemd_app_root: its deployed
 # config tree, plus any data a Quadlet bind-mounts under the same directory. Removed
 # wholesale on absent, so back the app up before decommissioning it.
-systemd_app_app_state_dir: "{{ systemd_app_config_root }}/{{ systemd_app_name }}"
+systemd_app_home: "{{ systemd_app_root }}/{{ systemd_app_name }}"
 
 # Where an app records the host paths it installed — a 'source' app's Quadlet files,
 # systemd units and config tree, a 'simple' app's one rendered Quadlet. Both a later
@@ -38,11 +38,11 @@ systemd_app_app_state_dir: "{{ systemd_app_config_root }}/{{ systemd_app_name }}
 # different files or be gone. Recorded for both kinds so that converting an app from one
 # to the other reconciles: what the old kind installed is what the new kind prunes.
 #
-# It lives inside the app's own state dir so the two share fate: the absent path drops
+# It lives inside the app's own home so the two share fate: the absent path drops
 # that whole tree, which takes the manifest with it, and a hand-removed or restored
 # /var/app/<app> cannot leave a stale record behind. Root-owned; every recorded path is
 # allowlisted before anything is removed.
-systemd_app_manifest_file: "{{ systemd_app_app_state_dir }}/.install-manifest"
+systemd_app_manifest_file: "{{ systemd_app_home }}/.install-manifest"
 
 # The controller-side sources a 'source' deploy installs from. quadlet/ and unit/ are
 # flat — installed by basename — while config/ is a tree whose layout is preserved, so
@@ -105,20 +105,20 @@ systemd_app_secret_values: {}
 # to recreate the secrets and restart the app to be sure. Its key set doubles as the record
 # of which secrets the app owns: that is how a later deploy drops one the app has stopped
 # declaring, and how a decommission knows what to remove without the encrypted file.
-# Root-only, and it lives in the app's state dir so a decommission takes it along.
+# Root-only, and it lives in the app's home so a decommission takes it along.
 #
 # What it records is what was stored, not what is stored: nothing stops a secret being
 # removed from the host by hand. So a deploy reads the store as well and re-stores any name
 # recorded here that podman no longer holds, rather than trusting the record and leaving the
 # app pointing at a name that is gone.
-systemd_app_secret_digest_file: "{{ systemd_app_app_state_dir }}/.secret-digests"
+systemd_app_secret_digest_file: "{{ systemd_app_home }}/.secret-digests"
 systemd_app_secret_digests: "{{ systemd_app_secret_values | secret_digests }}"
 
 # Directories to create before the container starts, for a bind mount whose contents the
 # app writes itself: podman would otherwise create the host path as root and a container
 # running unprivileged could not write in it. Each entry is {path, owner, group, mode},
-# where path is relative to this app's own state dir — so it cannot name another app's:
-#   - path: data            # -> {{ systemd_app_app_state_dir }}/data
+# where path is relative to this app's own home — so it cannot name another app's:
+#   - path: data            # -> {{ systemd_app_home }}/data
 #     owner: "10001"        # the image's non-root user, by numeric id
 systemd_app_data_dirs: []
 
