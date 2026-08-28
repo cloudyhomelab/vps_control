@@ -323,6 +323,12 @@ changed touches nothing. A changed value is removed and re-created, and the app'
 with the old value. A name dropped from the file — renamed, or deleted — is removed from
 the host, the same reconciliation the [install manifest](#install-manifest) does for files.
 
+That record says what was *stored*, not what *is* stored, so a deploy reads the store as
+well and re-stores any recorded name podman no longer holds — a secret dropped by hand, or
+lost with a store reset. Without that check the digest would still match, nothing would be
+re-created, and the app would go on failing to start on a name that is gone, with nothing
+to suggest a deploy could fix it.
+
 That record is also how `absent` knows what to remove: secrets are host-global and not part
 of `/var/app/<app>`, so they are dropped by name, read from the host rather than from the
 encrypted file, which by then may be gone.

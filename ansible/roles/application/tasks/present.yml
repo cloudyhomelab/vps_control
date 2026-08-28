@@ -246,24 +246,33 @@
   register: application_secret_digest_slurp
   when: application_secret_digest_stat.stat.exists | default(false)
 
-# Storing is create-only, so what changed has to be worked out first. Compared as
-# {name, digest} pairs: a secret is stored again when its value changed and equally when
-# it has never been stored — a host whose secret store was cleared, or a name new to the
-# file. Recorded names the file no longer holds are dropped; a rename would otherwise
-# leave the old secret on the host with nothing referencing it. Digests and names only —
-# no value reaches a fact, which the deploy is verbose enough to print.
+# What the store actually holds right now. The digest record says what this app last
+# stored, not what podman still has: a secret removed by hand, or lost with a store reset,
+# leaves the record matching so nothing would re-store it — and the app then references a
+# name podman no longer knows, which surfaces as a container that will not start with no
+# hint that a deploy could have fixed it. Only asked of a host for an app that has secrets.
+#
+# The Go template is escaped into the argument rather than written literally, so Jinja
+# leaves it for podman; `.Name` is a documented field of `podman secret ls`, unlike the
+# shape of its JSON, which has differed between versions.
+- name: "List stored podman secrets for app {{ application_name }}"
+  ansible.builtin.command:
+    argv: [podman, secret, ls, --format, "{{ '{{' }}.Name{{ '}}' }}"]
+  register: application_secret_store_list
+  changed_when: false
+  when: application_secret_values | length > 0
+
+# Storing is create-only, so what changed has to be worked out first — from three inputs:
+# what this app declares, what it last stored, and what the host still holds. The rules are
+# app_secret_reconcile's, with the cases spelled out in tests/test_application_filters.py.
+# Digests and names only reach the fact; no value does, and the deploy is verbose enough to
+# print what it sets.
 - name: "Reconcile recorded secrets of app {{ application_name }}"
   ansible.builtin.set_fact:
-    application_secret_names_to_store: >-
-      {{ (application_secret_digests | dict2items)
-         | difference(application_secret_recorded | dict2items)
-         | map(attribute='key') | list }}
-    application_secret_names_to_drop: >-
-      {{ application_secret_recorded.keys() | difference(application_secret_digests.keys()) | list }}
-  vars:
-    application_secret_recorded: >-
-      {{ (application_secret_digest_slurp.content | default('') | b64decode
-          | default('{}', true)) | from_json }}
+    application_secret_reconciled: >-
+      {{ application_secret_digests
+         | app_secret_reconcile(application_secret_digest_slurp.content | default(''),
+                                application_secret_store_list.stdout_lines | default([], true)) }}
 
 # Podman cannot update a stored secret in place on every version this may run on, and
 # `create` refuses a name that exists, so a rotation is a remove followed by a create.
@@ -271,9 +280,7 @@
 - name: "Remove superseded podman secrets of app {{ application_name }}"
   ansible.builtin.command:
     argv: [podman, secret, rm, "{{ item }}"]
-  loop: >-
-    {{ application_secret_names_to_store | default([])
-       | union(application_secret_names_to_drop | default([])) }}
+  loop: "{{ application_secret_reconciled.remove | default([]) }}"
   register: application_secret_rm
   changed_when: application_secret_rm.rc == 0
   failed_when:
@@ -290,7 +297,7 @@
     stdin_add_newline: false
   loop: >-
     {{ application_secret_values | dict2items
-       | selectattr('key', 'in', application_secret_names_to_store | default([])) | list }}
+       | selectattr('key', 'in', application_secret_reconciled.store | default([])) | list }}
   loop_control:
     label: "{{ item.key }}"
   register: application_secret_create

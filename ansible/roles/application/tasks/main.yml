@@ -70,8 +70,9 @@
 #
 # The secret facts are here for the same reason and matter as much: the decrypted values
 # of one app must never be visible to the next, the digest read is skipped for an app with
-# no record, so a stale register would make this app's secrets look already-stored, and a
-# stale create result would restart an app that rotated nothing. The install registers are
+# no record and the store listing for an app with no secrets, so a stale register would make
+# this app's secrets look already-stored — or already-present on the host — and a stale
+# create result would restart an app that rotated nothing. The install registers are
 # here for that last reason too: each is skipped for the kind — or the app — that does not
 # use it, so one app's file changes would otherwise decide how the next app is reloaded.
 - name: "Reset install path facts for app {{ application_name }}"
@@ -82,10 +83,10 @@
     application_config_found: {}
     application_secrets_stat: {}
     application_secret_load: {}
-    application_secret_names_to_store: []
-    application_secret_names_to_drop: []
+    application_secret_reconciled: {store: [], drop: [], remove: []}
     application_secret_digest_stat: {}
     application_secret_digest_slurp: {}
+    application_secret_store_list: {}
     application_secret_create: {}
     application_quadlet_render: {}
     application_quadlet_install: {}
