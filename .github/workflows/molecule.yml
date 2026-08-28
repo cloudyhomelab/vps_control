@@ -42,9 +42,15 @@ jobs:
 
       # Injected into the image's own ansible-core venv, as in ansible-lint.yml: the
       # scenario runs the role against that very core, and pip would otherwise drag in a
-      # second, collection-less one. --include-apps puts `molecule` on PATH.
+      # second, collection-less one.
+      #
+      # Two calls, because --include-apps is what puts `molecule` on PATH and pipx fails
+      # outright on an injected package that has no entry point at all — which the driver,
+      # a plugin package, does not.
       - name: Install molecule and its podman driver
-        run: pipx inject ansible-core molecule 'molecule-plugins[podman]' --include-apps
+        run: |
+          pipx inject ansible-core molecule --include-apps
+          pipx inject ansible-core 'molecule-plugins[podman]'
 
       # Both podmans in one line of output, for when a failure below turns out to be the
       # runner image moving rather than the role changing.

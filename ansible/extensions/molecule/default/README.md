@@ -18,7 +18,9 @@ decommissioning.
 ## Running it
 
 ```sh
-pipx inject ansible-core molecule 'molecule-plugins[podman]' --include-apps
+# --include-apps only on molecule: pipx refuses it for a package with no entry point.
+pipx inject ansible-core molecule --include-apps
+pipx inject ansible-core 'molecule-plugins[podman]'
 cd ansible/extensions
 sudo env "PATH=$PATH" molecule test
 ```
