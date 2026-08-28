@@ -1,7 +1,7 @@
 # Publishing the `systemd_app` role to Ansible Galaxy
 
 What remains to be done to make `ansible/roles/systemd_app` usable outside this repository.
-Every file:line reference was verified against commit 87cce4a; paths are relative to
+Every file:line reference was verified against commit 6a0befd; paths are relative to
 `ansible/roles/systemd_app/` unless stated.
 
 Publish as a **collection**, not a standalone role: `binarycodes.homelab`, keeping the role
@@ -14,35 +14,29 @@ have, and only a collection can both host them properly (`plugins/filter/`) and 
 ## Blockers — the role is wrong or silently broken outside this repo
 
 1. **Make the filter calls FQCNs.** Five call sites use bare names: `secret_digests`
-   (defaults/main.yml:120), `route_problems` (tasks/main.yml:46), `container_problems`
-   (tasks/main.yml:62), `reconcile_secrets` (tasks/present.yml:274), `systemd_env_lines`
+   (defaults/main.yml:126), `route_problems` (tasks/main.yml:52), `container_problems`
+   (tasks/main.yml:68), `reconcile_secrets` (tasks/present.yml:277), `systemd_env_lines`
    (templates/inline.container.j2:13). Each becomes `binarycodes.homelab.<name>`. Note
-   defaults/main.yml:120 in particular — a *default variable* that invokes a custom filter, so
+   defaults/main.yml:126 in particular — a *default variable* that invokes a custom filter, so
    the role fails to even resolve its vars if the plugin is not found. The `collections:` play
    keyword shortens module and role names but is not a reliable shortcut for Jinja filter and
    test plugins, so these must be written out in full.
 
-2. **Drop the `systemd_app_apps_dir` default** (defaults/main.yml:22), currently
-   `{{ playbook_dir }}/../apps` — this repo's layout, one level above the playbook. Make it
-   required for `kind=source` in `meta/argument_specs.yml` and assert it in `tasks/main.yml`.
-   The role already refuses a missing app directory, so the failure is loud, but the default is
-   misleading.
-
-3. **Stop naming a sibling app in the defaults.** `systemd_app_caddy_confd`
-   (defaults/main.yml:69) defaults to `{{ systemd_app_root }}/reverse_proxy/config/conf.d` —
+2. **Stop naming a sibling app in the defaults.** `systemd_app_caddy_confd`
+   (defaults/main.yml:75) defaults to `{{ systemd_app_root }}/reverse_proxy/config/conf.d` —
    composed from the root, but still built around the name of another app in *this* playbook,
    and it is the one directory this role writes into that another app owns. Same for
-   `systemd_app_network: web.network` (defaults/main.yml:81), which names
+   `systemd_app_network: web.network` (defaults/main.yml:87), which names
    `apps/shared/quadlet/web.network`. Both become explicit, un-defaulted (or neutrally
    defaulted) inputs — the reverse proxy's location is a property of the consumer's fleet, not
    of this role.
 
-4. **Make the route snippet overridable.** `templates/caddy-site.caddy.j2:4` sets
+3. **Make the route snippet overridable.** `templates/caddy-site.caddy.j2:4` sets
    `disable_http_challenge`, a site-specific TLS choice (no inbound :80) that a reusable role
    must not make. Add `systemd_app_route_template: caddy-site.caddy.j2` and template from that
    variable so a consumer can point at their own.
 
-5. **Remove the `meta: flush_handlers` calls** (tasks/present.yml:351, tasks/absent.yml:108).
+4. **Remove the `meta: flush_handlers` calls** (tasks/present.yml:354, tasks/absent.yml:108).
    They flush the *play's* handlers, not the role's: in someone else's play they fire unrelated
    pending handlers early, mid-converge. The behaviour is load-bearing here — daemon-reload
    must precede the start/restart — so replace it with a conditional task calling
@@ -50,17 +44,17 @@ have, and only a collection can both host them properly (`plugins/filter/`) and 
 
 ## Before publishing
 
-6. **Fill in `meta/main.yml`**: `author: infra` (:4) needs a real author, there are no
+5. **Fill in `meta/main.yml`**: `author: infra` (:4) needs a real author, there are no
    `galaxy_tags`, `platforms` is limited to Debian/Ubuntu (nothing in the role is
    Debian-specific and Quadlet is most at home on Fedora/EL — add them), and `license: MIT` is
    claimed with **no LICENSE file anywhere in the repo**.
 
-7. **Declare `community.sops`.** `tasks/present.yml:17` calls `community.sops.load_vars`,
+6. **Declare `community.sops`.** `tasks/present.yml:20` calls `community.sops.load_vars`,
    reached whenever an app ships `secrets.sops.yaml`, but `meta/main.yml:17` says
    `dependencies: []`. In the collection this goes in `galaxy.yml`'s `dependencies:`, which is
    what installs it for consumers automatically.
 
-8. **Write YAML doc blocks for the five filters.** Collection filters are collection-global
+7. **Write YAML doc blocks for the five filters.** Collection filters are collection-global
    public API — callable by anyone who installs the collection, whether or not they use the
    role, with semver applying to their names and return shapes. `ansible-doc -t filter
    binarycodes.homelab.route_problems` surfaces them and `ansible-test sanity` expects
@@ -69,21 +63,21 @@ have, and only a collection can both host them properly (`plugins/filter/`) and 
    filters both return a list of human-readable problem strings and never raise, so a caller
    reports everything wrong at once.
 
-9. **Rewrite the README app-agnostic.** It uses `whichday`, `nasplan`, `cloudyhome.org`,
-    `caddy-data` and the `web` network as examples throughout (README.md:79, 284, 296, 306-337,
-    443-458) and cross-references `ansible/SECRETS.md` (:379),
-    `ansible/filter_plugins/systemd_app.py` (:474) and `ansible/tests/` (:476) — paths a
+8. **Rewrite the README app-agnostic.** It uses `whichday`, `nasplan`, `cloudyhome.org`,
+    `caddy-data` and the `web` network as examples throughout (README.md:79, 295, 307, 317-348,
+    454-469) and cross-references `ansible/SECRETS.md` (:390),
+    `ansible/filter_plugins/systemd_app.py` (:485) and `ansible/tests/` (:487) — paths a
     consumer will not have. Needs generic examples (`myapp`, `app.example.com`) with the
     secrets and filter material inlined or dropped.
 
-10. **State the `become` and rootful-podman contract in the README.** The role writes
+9. **State the `become` and rootful-podman contract in the README.** The role writes
     `/etc/containers/systemd`, runs `podman secret` as root and sets root-owned files, but a
     role cannot set `become` — it relies on the play's `become: true`. It is also
     rootful-podman-only by construction.
 
 ## Nice to have
 
-11. **A molecule scenario** (podman driver, systemd-enabled container). The filters have
+10. **A molecule scenario** (podman driver, systemd-enabled container). The filters have
     pytest coverage; the role's actual behaviour — the install-manifest prune, a kind flip,
     `absent` — has none, and that coverage is what makes the extraction safe to refactor
     through.
@@ -121,8 +115,9 @@ Before publishing, the same file can point at git instead:
     version: main
 ```
 
-Call sites change in two ways only — the role's FQCN, and the three vars blockers 2-3 stop the
-role from defaulting, hoisted to play level because every app in a play shares them:
+Call sites change in two ways only — the role's FQCN, and the vars the role does not default,
+hoisted to play level because every app in a play shares them: `systemd_app_apps_dir`, which
+this repo's playbook already sets, plus the two blocker 2 stops defaulting:
 
 ```yaml
   vars:
@@ -153,15 +148,15 @@ role from defaulting, hoisted to play level because every app in a play shares t
 
 ## Order of work
 
-Blockers 2-5 can land in this repo first, one commit each, keeping CI green. Blocker 1 cannot:
+Blockers 2-4 can land in this repo first, one commit each, keeping CI green. Blocker 1 cannot:
 the FQCN form only exists once the collection does. Then:
 
 1. Extract into the collection layout above, splitting the filter module by concern, and apply
    blocker 1.
-2. Publishing metadata: `galaxy.yml`, `meta/runtime.yml`, LICENSE, `galaxy_info` (6, 7).
-3. Filter doc blocks (8).
-4. README rewrite (9, 10).
-5. Molecule scenario (11).
+2. Publishing metadata: `galaxy.yml`, `meta/runtime.yml`, LICENSE, `galaxy_info` (5, 6).
+3. Filter doc blocks (7).
+4. README rewrite (8, 9).
+5. Molecule scenario (10).
 6. Point this repo at the published collection: `ansible/requirements.yml`, and drop
    `filter_plugins` / `roles_path` from `ansible/ansible.cfg`. The
    `.github/workflows/deploy-application.yml` triggers currently list six paths
