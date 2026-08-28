@@ -1,4 +1,11 @@
 ---
-- name: Reload systemd
+# Notified by topic (`listen`) rather than by name. Handler names are global to the play and
+# Ansible runs only one handler per duplicated name — verified on core 2.19 — so a consumer
+# play with a handler of its own called something as ordinary as "Reload systemd" would
+# silently lose one of the two: either this reload, leaving Quadlet-generated services
+# unregenerated, or theirs. The topic is role-prefixed, so nothing else can match it, and a
+# consumer's own daemon-reload handler keeps working alongside this one.
+- name: Reload systemd unit definitions
+  listen: systemd_app reload systemd
   ansible.builtin.systemd:
     daemon_reload: true

@@ -34,7 +34,7 @@
     path: "{{ systemd_app_system_dir }}/{{ systemd_app_name }}.container"
     state: absent
   when: systemd_app_kind == 'inline'
-  notify: Reload systemd
+  notify: systemd_app reload systemd
 
 - name: "Read recorded install manifest for app {{ systemd_app_name }}"
   ansible.builtin.include_tasks: read-manifest.yml
@@ -44,7 +44,7 @@
     path: "{{ item }}"
     state: absent
   loop: "{{ systemd_app_manifest_paths }}"
-  notify: Reload systemd
+  notify: systemd_app reload systemd
 
 # Which secrets this app owns, from the record the last deploy wrote. Read before the
 # state tree that holds it is removed, and from the host rather than the encrypted file,

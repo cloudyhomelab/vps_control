@@ -68,7 +68,7 @@
     mode: "{{ systemd_app_file_mode }}"
   when: systemd_app_kind == 'inline'
   register: systemd_app_quadlet_render
-  notify: Reload systemd
+  notify: systemd_app reload systemd
 
 # What the last deploy installed, so the files below can be reconciled against it. Read
 # for either kind, and that is what makes a change of kind converge: the paths recorded
@@ -87,7 +87,7 @@
   loop: "{{ systemd_app_source_quadlet_files }}"
   when: systemd_app_kind == 'source'
   register: systemd_app_quadlet_install
-  notify: Reload systemd
+  notify: systemd_app reload systemd
 
 - name: "Install systemd units for app {{ systemd_app_name }}"
   ansible.builtin.copy:
@@ -99,7 +99,7 @@
   loop: "{{ systemd_app_source_unit_files }}"
   when: systemd_app_kind == 'source'
   register: systemd_app_unit_install
-  notify: Reload systemd
+  notify: systemd_app reload systemd
 
 - name: "Check for config directory of app {{ systemd_app_name }}"
   ansible.builtin.stat:
@@ -177,7 +177,7 @@
     path: "{{ item }}"
     state: absent
   loop: "{{ systemd_app_manifest_paths | difference(systemd_app_installed_paths) }}"
-  notify: Reload systemd
+  notify: systemd_app reload systemd
 
 # The config copy above creates this, but only for an app that ships a config tree. Every
 # app owns host state below it regardless: the install manifest recorded just below, and
