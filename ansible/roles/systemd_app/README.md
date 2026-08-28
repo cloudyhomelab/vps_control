@@ -34,7 +34,7 @@ For the common "one image behind the reverse proxy" case, the role renders a
 single `<name>.container` Quadlet from inline parameters — no source directory
 needed. Just give it an image (and usually a domain). The container is named
 `<systemd_app_name>`, joins `systemd_app_network`, and is auto-updated
-(`AutoUpdate=registry`).
+(`AutoUpdate=registry`, see [rendered container policy](#rendered-container-policy)).
 
 ## What it does
 
@@ -244,6 +244,26 @@ Two consequences worth knowing:
 Generated route snippets are not part of any app's config tree, so they are outside this
 entirely; the deploy playbook applies those centrally once every app has converged (see
 [Caddy routing](#caddy-routing)).
+
+## Rendered container policy
+
+Beyond the parameters above, an `inline` container is rendered with four directives no
+parameter controls. They are fleet policy rather than mechanism — the defaults for a
+long-running app behind the reverse proxy, not something the role needs in order to work:
+
+| Directive                                  | Section       | Why                                                                                                                                                                       |
+| ------------------------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AutoUpdate=registry`                       | `[Container]` | Enrols the container in `podman auto-update`, so a moving tag is pulled and the app restarted on it without a deploy. Only useful together with the healthcheck below, which is what makes a bad image roll back. |
+| `Restart=always`                            | `[Service]`   | The app is a service: it is expected to stay up, and any exit is a fault to recover from rather than a result. Wrong for a job that should run once and exit — that is a `source` app with its own unit and timer. |
+| `Notify=healthy`, `TimeoutStartSec=`        | both          | Emitted only when `systemd_app_health_cmd` is set; see below.                                                                                                              |
+| `WantedBy=multi-user.target default.target` | `[Install]`   | Starts at boot. Both targets are named so the app comes up whether or not the host's `default.target` is `multi-user.target`.                                               |
+
+The first two are overridable without touching the role: a `[Container]` or `[Service]`
+key set twice takes its last value, so an `AutoUpdate=` line in
+`systemd_app_container_options`, or a `Restart=` line in `systemd_app_service_options`,
+wins over the rendered one. `[Install]` has no such list, so an app that wants different
+boot behaviour is a `source` app writing its own Quadlet — as is one that wants none of
+this at all.
 
 ## Healthchecks and auto-update rollback
 
