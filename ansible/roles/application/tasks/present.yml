@@ -61,7 +61,7 @@
 # kind installs its container from a file instead (the copy tasks below).
 - name: "Render Quadlet for container {{ application_name }}"
   ansible.builtin.template:
-    src: container.container.j2
+    src: simple.container.j2
     dest: "{{ application_system_dir }}/{{ application_name }}.container"
     owner: "{{ application_owner }}"
     group: "{{ application_group }}"
