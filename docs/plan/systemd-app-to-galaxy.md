@@ -77,10 +77,14 @@ have, and only a collection can both host them properly (`plugins/filter/`) and 
 
 ## Nice to have
 
-10. **A molecule scenario** (podman driver, systemd-enabled container). The filters have
-    pytest coverage; the role's actual behaviour — the install-manifest prune, a kind flip,
-    `absent` — has none, and that coverage is what makes the extraction safe to refactor
-    through.
+10. **Move the molecule scenario into the collection.** It now lives at
+    `ansible/extensions/molecule/default/` (podman driver, systemd-enabled container) and
+    covers what the extraction has to preserve: both kinds converging, idempotence, the
+    install-manifest prune, a `source` → `inline` flip, and a repeated `absent`. Run by
+    `.github/workflows/molecule.yml`. In the collection it needs three edits — the role
+    name becomes an FQCN in `converge.yml` and `side_effect.yml`, and the
+    `ANSIBLE_ROLES_PATH` / `ANSIBLE_FILTER_PLUGINS` pair in `molecule.yml` goes, the
+    collection resolving both itself.
 
 ## Target layout
 
@@ -93,7 +97,7 @@ ansible_collections/binarycodes/homelab/
                                      # split by concern: secrets.py, validation.py, systemd.py
   roles/systemd_app/                 # from ansible/roles/systemd_app/, unchanged
   tests/unit/                        # from ansible/tests/test_systemd_app_filters.py
-  extensions/molecule/default/
+  extensions/molecule/default/       # from ansible/extensions/molecule/default/
 ```
 
 ## What consumers write
@@ -156,7 +160,7 @@ the FQCN form only exists once the collection does. Then:
 2. Publishing metadata: `galaxy.yml`, `meta/runtime.yml`, LICENSE, `galaxy_info` (5, 6).
 3. Filter doc blocks (7).
 4. README rewrite (8, 9).
-5. Molecule scenario (10).
+5. Move the molecule scenario across and re-point it at the collection (10).
 6. Point this repo at the published collection: `ansible/requirements.yml`, and drop
    `filter_plugins` / `roles_path` from `ansible/ansible.cfg`. The
    `.github/workflows/deploy-application.yml` triggers currently list six paths
