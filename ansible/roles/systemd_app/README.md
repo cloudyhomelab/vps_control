@@ -1,7 +1,7 @@
 # systemd_app
 
-Deploys (or decommissions) a **single** app behind the reverse proxy, plus an
-optional Caddy route. Invoke it once per app. Two required selectors drive it:
+Deploys (or decommissions) a **single** app as Podman Quadlet files and systemd units,
+plus an optional Caddy route. Invoke it once per app. Two required selectors drive it:
 
 - **`systemd_app_kind`** — `source` or `inline` (see below). **Required, no default.**
 - **`systemd_app_state`** — `present` (default) deploys; `absent` decommissions.
@@ -70,9 +70,9 @@ Each subdirectory is optional — an app may ship only a Quadlet, only config, e
 
 ### `inline` — render a single container
 
-For the common "one image behind the reverse proxy" case, the role renders a
-single `<name>.container` Quadlet from inline parameters — no source directory
-needed. Just give it an image (and usually a domain). The container is named
+For the common one-image-one-container case, the role renders a single
+`<name>.container` Quadlet from inline parameters — no source directory needed. Just give
+it an image (and usually a domain). The container is named
 `<systemd_app_name>`, joins `systemd_app_network`, and is auto-updated
 (`AutoUpdate=registry`, see [rendered container policy](#rendered-container-policy)).
 
@@ -111,16 +111,16 @@ needed. Just give it an image (and usually a domain). The container is named
 
 > **`absent` is destructive and not reversible. Back the app up before setting it.**
 > Whatever is under `/var/app/<app>` goes, including anything the container wrote
-> there. The route stops resolving when the deploy playbook reloads Caddy (post-task).
+> there. The route stops resolving once Caddy is reloaded, which your play does, not
+> this role.
 > After a decommission has run on the host, delete the role call.
 
 Two things `absent` does **not** remove, because they outlive the units that declared
-them and one of them holds Caddy's TLS certificates: **Podman named volumes**
-(`caddy-data`, `caddy-config`) and **networks** (`web`). Removing the `.volume`/`.network`
-Quadlet file does not delete the volume or network it created. Clear those by hand with
-`podman volume rm` / `podman network rm` once you are sure — and note that discarding
-`caddy-data` forces certificate re-issuance, which Let's Encrypt rate-limits to 5
-duplicates per week.
+them: **Podman named volumes** and **networks**. Removing the `.volume`/`.network` Quadlet
+file does not delete the volume or network it created. Clear those by hand with
+`podman volume rm` / `podman network rm` once you are sure — and look at what is in them
+first: a volume holding issued TLS certificates costs a re-issuance, which ACME CAs
+rate-limit.
 
 ## Role parameters
 
@@ -219,11 +219,12 @@ three are removed on that converge. The one thing to do by hand is the running u
 unit whose file is pruned keeps running until it is stopped or the host reboots (see
 below), so stop the ones the app no longer ships, once.
 
-Why a manifest and not a destination diff: `/var/app/reverse_proxy/config/` also holds
-`conf.d/*.caddy` route snippets generated for *other* apps, which exist nowhere in the
-source tree. Deleting whatever is not in `apps/<app>/config/` would wipe every route on
-every converge. A manifest only ever removes what a previous deploy recorded installing,
-so generated and runtime files are invisible to it.
+Why a manifest and not a destination diff: a deployed config tree can hold files that no
+source tree contains. `systemd_app_caddy_confd` normally sits inside the reverse proxy's
+own config tree, and holds a route snippet generated for every *other* routed app.
+Deleting whatever is not in `<app>/config/` would wipe all of them on every converge. A
+manifest only ever removes what a previous deploy recorded installing, so generated and
+runtime files are invisible to it.
 
 Only files are reconciled — a pruned tree can leave empty directories behind. And a unit
 dropped from the app that is still running keeps running until it is stopped or the host
@@ -237,11 +238,12 @@ removing the rendered `<name>.container` by name.
 
 ## Caddy routing
 
-Set `systemd_app_domain` to expose the app through the reverse proxy without
-editing the central `Caddyfile`. The role drops a `<systemd_app_name>.caddy`
-snippet (`domain → upstream:port`) into `systemd_app_caddy_confd`, which the
-Caddyfile imports via `import /etc/caddy/conf.d/*.caddy`. The deploy playbook
-reloads Caddy once as a post-task, so the route applies after all apps converge.
+Set `systemd_app_domain` to expose the app through the reverse proxy without editing the
+central `Caddyfile`. The role drops a `<systemd_app_name>.caddy` snippet
+(`domain → upstream:port`) into `systemd_app_caddy_confd`, which the Caddyfile is expected
+to import (`import conf.d/*.caddy`, however that directory reaches Caddy). The role never
+reloads Caddy itself: do that once in your play after every app has converged, rather than
+cycling the proxy once per routed app.
 
 `systemd_app_upstream` defaults to `systemd_app_name` — correct for every `inline`
 app (the container *is* `<name>`) and for `source` apps whose `ContainerName=`
@@ -293,14 +295,14 @@ Two consequences worth knowing:
   stopped by hand (see [install manifest](#install-manifest)).
 
 Generated route snippets are not part of any app's config tree, so they are outside this
-entirely; the deploy playbook applies those centrally once every app has converged (see
+entirely; your play applies those centrally once every app has converged (see
 [Caddy routing](#caddy-routing)).
 
 ## Rendered container policy
 
 Beyond the parameters above, an `inline` container is rendered with four directives no
 parameter controls. They are fleet policy rather than mechanism — the defaults for a
-long-running app behind the reverse proxy, not something the role needs in order to work:
+long-running service, not something the role needs in order to work:
 
 | Directive                                  | Section       | Why                                                                                                                                                                       |
 | ------------------------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -332,7 +334,7 @@ fleet policy in `defaults/main.yml` and rarely needs overriding.
 ```yaml
     - role: systemd_app
       systemd_app_kind: inline
-      systemd_app_name: nasplan
+      systemd_app_name: myapp
       systemd_app_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
 ```
 
@@ -343,8 +345,8 @@ address the app as `127.0.0.1`, not `localhost`, which resolves to `::1` on musl
 where nothing is listening. Leave `systemd_app_health_cmd` empty for an app that cannot
 be probed; it then gets no health block and no rollback protection.
 
-`source` apps declare these keys in their own Quadlet files (see
-`apps/whichday/quadlet/whichday.container`), so this policy does not reach them.
+`source` apps declare these keys in their own Quadlet files, so this policy does not
+reach them.
 
 ## Secrets
 
@@ -354,10 +356,10 @@ secrets ships one SOPS-encrypted file in its own directory, keyed by the podman 
 names:
 
 ```yaml
-# apps/whichday/secrets.sops.yaml   (values encrypted; keys readable)
-whichday-oidc-issuer-uri: https://accounts.example.com
-whichday-oidc-client-id: …
-whichday-oidc-client-secret: …
+# apps/myapp/secrets.sops.yaml   (values encrypted; keys readable)
+myapp-oidc-issuer-uri: https://accounts.example.com
+myapp-oidc-client-id: …
+myapp-oidc-client-secret: …
 ```
 
 Nothing at the call site, for either kind. The role looks for
@@ -372,7 +374,7 @@ How the container reaches a stored value differs by kind:
 upper-cased, dashes as underscores. The file above yields
 
 ```ini
-Secret=whichday-oidc-client-secret,type=env,target=WHICHDAY_OIDC_CLIENT_SECRET
+Secret=myapp-oidc-client-secret,type=env,target=MYAPP_OIDC_CLIENT_SECRET
 ```
 
 so the name has to be the variable the app reads, spelled in lower case with dashes. That
@@ -384,8 +386,8 @@ bare name (`POSTGRES_PASSWORD`), the choice is a host-global secret called
 **`source`** — the app writes the line itself and can point any name at any variable:
 
 ```ini
-# apps/whichday/quadlet/whichday.container
-Secret=whichday-oidc-client-secret,type=env,target=WHICHDAY_OIDC_CLIENT_SECRET
+# apps/myapp/quadlet/myapp.container
+Secret=myapp-oidc-client-secret,type=env,target=MYAPP_OIDC_CLIENT_SECRET
 ```
 
 The name is then the whole contract between file and Quadlet — rename it in one and the
@@ -422,12 +424,15 @@ of `/var/app/<app>`, so they are dropped by name, read from the host rather than
 encrypted file, which by then may be gone.
 
 **Requirements.** The controller needs the `sops` binary and the `community.sops`
-collection (CI installs both; see `ansible/requirements.yml`), and the decryption key —
-without it the run fails at the decrypting task, before anything on the host changes. The
-host's podman must understand `Secret=` in a Quadlet `[Container]` section; too old and the
-generator refuses the unit at `daemon-reload`.
+collection, and the decryption key — without it the run fails at the decrypting task,
+before anything on the host changes. The host's podman must understand `Secret=` in a
+Quadlet `[Container]` section; too old and the generator refuses the unit at
+`daemon-reload`.
 
-See `ansible/SECRETS.md` for the key itself and how CI gets it.
+How the key reaches the controller is outside this role: sops finds it the usual ways
+(`SOPS_AGE_KEY`, `~/.config/sops/age/keys.txt`, a KMS), and which keys encrypt which files
+is your project's `.sops.yaml`. In CI that usually means one secret in the job environment
+and nothing on disk.
 
 ## Pre-created data directories
 
@@ -464,7 +469,7 @@ would survive.
 The role starts/enables its **managed units**: `systemd_app_enable_units` if you
 list any, otherwise — for an `inline` app — the single generated `<name>.service`.
 A `source` app that lists none starts nothing and relies entirely on its
-`[Install]` section (e.g. the network-only `shared` app).
+`[Install]` section — an app shipping only a `.network` Quadlet, say.
 
 `systemd_app_enable_units` takes the **generated** service name (the `.service`
 suffix is optional):
@@ -488,25 +493,31 @@ A `source` app with a Caddy route:
 ```yaml
 - hosts: all
   become: true
+
+  vars:
+    # Where this project keeps its app definitions; every app in the play reads the
+    # same tree, and a 'source' app fails the run without it.
+    systemd_app_apps_dir: "{{ playbook_dir }}/../apps"
+
   roles:
     - role: systemd_app
       systemd_app_kind: source
-      systemd_app_name: whichday
+      systemd_app_name: myapp
       systemd_app_enable_units:
-        - whichday.service
-      # Optional: route whichday.cloudyhome.org -> whichday:8080 via Caddy.
-      systemd_app_domain: whichday.cloudyhome.org
+        - myapp.service
+      # Optional: route app.example.com -> myapp:8080 via Caddy.
+      systemd_app_domain: app.example.com
 ```
 
-An `inline` app — one image behind the reverse proxy, no source dir:
+An `inline` app — one image, no source directory:
 
 ```yaml
     - role: systemd_app
       systemd_app_kind: inline
-      systemd_app_name: nasplan
-      systemd_app_image: docker.io/binarycodes/make-my-nas:latest
+      systemd_app_name: myapi
+      systemd_app_image: docker.io/org/myapi:latest
       systemd_app_port: 8080
-      systemd_app_domain: nasplan.cloudyhome.org
+      systemd_app_domain: api.example.com
 ```
 
 Decommission an app (leave the call in place for one converge, then delete it).
@@ -516,14 +527,25 @@ This destroys `/var/app/<app>` — back it up first:
     - role: systemd_app
       systemd_app_state: absent
       systemd_app_kind: inline
-      systemd_app_name: whoami
+      systemd_app_name: oldapp
 ```
 
 ## Where the logic lives
 
-The role's two pieces of real computation are Python, not Jinja: the secret reconcile and
-the input validation are functions in `ansible/filter_plugins/systemd_app.py`, exposed as
-the `app_*` filters this role calls. They moved there to be testable —
-`ansible/tests/test_systemd_app_filters.py` covers them case by case, and CI runs it before
-the lint and the syntax check. A change to what the role *accepts*, or to how it decides
-which secrets to store, belongs in that file and its tests rather than in a YAML scalar.
+The role's real computation is Python, not Jinja. It calls five filter plugins, which the
+controller has to be able to load — from the collection that ships them, or from a
+`filter_plugins/` directory the controller's configuration points at:
+
+| Filter               | Used for                                                          |
+| -------------------- | ----------------------------------------------------------------- |
+| `secret_digests`     | SHA-256 per secret value, the record a converge compares against. |
+| `reconcile_secrets`  | Which secrets to store and which to drop, from three inputs.      |
+| `route_problems`     | Checking `systemd_app_domain` / `_upstream` / `_port`.             |
+| `container_problems` | Checking what would be interpolated into a rendered Quadlet.      |
+| `systemd_env_lines`  | Quoting and escaping `systemd_app_env` into `Environment=` lines.  |
+
+They are Python so they can be tested as Python — a table of cases in under a second,
+rather than a playbook run per case — and both `*_problems` filters return a list of
+human-readable problems and never raise, so one run reports everything wrong at once. A
+change to what the role *accepts*, or to how it decides which secrets to store, belongs
+there rather than in a YAML scalar.
