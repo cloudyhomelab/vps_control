@@ -6,6 +6,46 @@ optional Caddy route. Invoke it once per app. Two required selectors drive it:
 - **`systemd_app_kind`** — `source` or `inline` (see below). **Required, no default.**
 - **`systemd_app_state`** — `present` (default) deploys; `absent` decommissions.
 
+## Requirements
+
+**A privileged play.** Every task that touches the host writes root-owned files, calls
+`podman` against the root store, or drives system units — and a role cannot set `become`
+for the play that includes it, so the caller does, on the play or on the role entry:
+
+```yaml
+- hosts: all
+  become: true
+  roles:
+    - role: systemd_app
+```
+
+Without it the run fails part-way through the first install, on a permission error, rather
+than before it starts. The role's own controller-side tasks opt back out with
+`become: false`: they only stat and glob the app definitions where those live, and root on
+the controller is neither needed nor wanted.
+
+**Rootful podman, by construction.** Quadlet files land in `systemd_app_system_dir`, which
+the *system* generator reads; podman secrets are created in the host-global root store;
+installed files are owned by `systemd_app_owner`, `root` unless told otherwise; and units
+are started, enabled and reloaded at system scope. Repointing `systemd_app_system_dir` and
+`systemd_app_unit_dir` at a user's own Quadlet and unit directories does not make any of
+that rootless — the `podman secret` and `systemctl` calls would still be the root ones. A
+rootless variant is a different role, not a different set of paths.
+
+**On the target host:** systemd, and podman 4.4 or newer, the release Quadlet arrived in.
+An `inline` app that sets `systemd_app_health_cmd` needs podman 5.0, where Quadlet learned
+`Notify=healthy` — the directive that makes a failing probe a failed start (see
+[healthchecks](#healthchecks-and-auto-update-rollback)). Both install directories have to
+exist already: the role installs into `systemd_app_system_dir` and `systemd_app_unit_dir`
+but creates neither, one being podman's own directory and the other systemd's. What it
+does create is what it owns — `systemd_app_root` and each app's home below it, and
+`systemd_app_caddy_confd` for a routed app.
+
+**On the controller:** no privilege, and nothing beyond ansible-core — unless an app ships
+encrypted secrets, which need the `community.sops` collection, the `sops` binary, and a key
+that can decrypt the file (see [secrets](#secrets)). Nothing is written on the controller
+either way; the app definitions are only read.
+
 ## Kinds
 
 ### `source` — install from a directory
