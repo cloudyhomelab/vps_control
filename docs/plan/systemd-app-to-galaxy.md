@@ -1,7 +1,7 @@
 # Publishing the `systemd_app` role to Ansible Galaxy
 
 What remains to be done to make `ansible/roles/systemd_app` usable outside this repository.
-Every file:line reference was verified against commit 6a0befd; paths are relative to
+Every file:line reference was verified against commit 5d2d7fb; paths are relative to
 `ansible/roles/systemd_app/` unless stated.
 
 Publish as a **collection**, not a standalone role: `binarycodes.homelab`, keeping the role
@@ -64,16 +64,11 @@ have, and only a collection can both host them properly (`plugins/filter/`) and 
    reports everything wrong at once.
 
 8. **Rewrite the README app-agnostic.** It uses `whichday`, `nasplan`, `cloudyhome.org`,
-    `caddy-data` and the `web` network as examples throughout (README.md:79, 295, 307, 317-348,
-    454-469) and cross-references `ansible/SECRETS.md` (:390),
-    `ansible/filter_plugins/systemd_app.py` (:485) and `ansible/tests/` (:487) — paths a
+    `caddy-data` and the `web` network as examples throughout (README.md:119, 335, 347,
+    357-388, 494-509) and cross-references `ansible/SECRETS.md` (:430),
+    `ansible/filter_plugins/systemd_app.py` (:525) and `ansible/tests/` (:527) — paths a
     consumer will not have. Needs generic examples (`myapp`, `app.example.com`) with the
     secrets and filter material inlined or dropped.
-
-9. **State the `become` and rootful-podman contract in the README.** The role writes
-    `/etc/containers/systemd`, runs `podman secret` as root and sets root-owned files, but a
-    role cannot set `become` — it relies on the play's `become: true`. It is also
-    rootful-podman-only by construction.
 
 ## Nice to have
 
@@ -159,7 +154,7 @@ the FQCN form only exists once the collection does. Then:
    blocker 1.
 2. Publishing metadata: `galaxy.yml`, `meta/runtime.yml`, LICENSE, `galaxy_info` (5, 6).
 3. Filter doc blocks (7).
-4. README rewrite (8, 9).
+4. README rewrite (8).
 5. Move the molecule scenario across and re-point it at the collection (10).
 6. Point this repo at the published collection: `ansible/requirements.yml`, and drop
    `filter_plugins` / `roles_path` from `ansible/ansible.cfg`. The
