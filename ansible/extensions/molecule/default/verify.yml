@@ -83,7 +83,7 @@
           - "'Image=' ~ molecule_image in molecule_inline_rendered"
           - "'ContainerName=molinline' in molecule_inline_rendered"
           - "'Network=none' in molecule_inline_rendered"
-          - "'Exec=sleep infinity' in molecule_inline_rendered"
+          - "'Exec=sleep 86400' in molecule_inline_rendered"
           # Quoted as one assignment: unquoted, systemd would read 'world' as a second
           # variable. This is systemd_env_lines' output, end to end.
           - "'Environment=\"MOLECULE_GREETING=hello world\"' in molecule_inline_rendered"

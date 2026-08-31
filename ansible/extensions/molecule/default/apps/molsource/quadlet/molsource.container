@@ -11,7 +11,9 @@ Wants=network-online.target
 Image=quay.io/libpod/alpine:latest
 ContainerName=molsource
 Network=none
-Exec=sleep infinity
+# A number, not GNU coreutils' 'infinity': this image's sleep is busybox, which
+# rejects that and would exit at once, leaving Restart=always to cycle the unit.
+Exec=sleep 86400
 
 [Service]
 Restart=always

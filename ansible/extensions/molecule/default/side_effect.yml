@@ -88,7 +88,7 @@
         systemd_app_image: "{{ molecule_image }}"
         systemd_app_domain: molsource.molecule.test
         systemd_app_container_options:
-          - Exec=sleep infinity
+          - Exec=sleep 86400
 
     - name: Stat what the previous kind installed
       ansible.builtin.stat:
