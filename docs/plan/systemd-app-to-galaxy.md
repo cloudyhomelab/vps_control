@@ -1,7 +1,7 @@
 # Publishing the `systemd_app` role to Ansible Galaxy
 
 What remains to be done to make `ansible/roles/systemd_app` usable outside this repository.
-Every file:line reference was verified against commit 5d2d7fb; paths are relative to
+Every file:line reference was verified against commit ace2fe6; paths are relative to
 `ansible/roles/systemd_app/` unless stated.
 
 Publish as a **collection**, not a standalone role: `binarycodes.homelab`, keeping the role
@@ -62,13 +62,6 @@ have, and only a collection can both host them properly (`plugins/filter/`) and 
    comments but no doc blocks. Worth documenting as part of the contract: the two `*_problems`
    filters both return a list of human-readable problem strings and never raise, so a caller
    reports everything wrong at once.
-
-8. **Rewrite the README app-agnostic.** It uses `whichday`, `nasplan`, `cloudyhome.org`,
-    `caddy-data` and the `web` network as examples throughout (README.md:119, 335, 347,
-    357-388, 494-509) and cross-references `ansible/SECRETS.md` (:430),
-    `ansible/filter_plugins/systemd_app.py` (:525) and `ansible/tests/` (:527) — paths a
-    consumer will not have. Needs generic examples (`myapp`, `app.example.com`) with the
-    secrets and filter material inlined or dropped.
 
 ## Nice to have
 
@@ -154,9 +147,8 @@ the FQCN form only exists once the collection does. Then:
    blocker 1.
 2. Publishing metadata: `galaxy.yml`, `meta/runtime.yml`, LICENSE, `galaxy_info` (5, 6).
 3. Filter doc blocks (7).
-4. README rewrite (8).
-5. Move the molecule scenario across and re-point it at the collection (10).
-6. Point this repo at the published collection: `ansible/requirements.yml`, and drop
+4. Move the molecule scenario across and re-point it at the collection (10).
+5. Point this repo at the published collection: `ansible/requirements.yml`, and drop
    `filter_plugins` / `roles_path` from `ansible/ansible.cfg`. The
    `.github/workflows/deploy-application.yml` triggers currently list six paths
    (`ansible/apps/**`, `playbooks/deploy_apps.yml`, `roles/systemd_app/**`,
