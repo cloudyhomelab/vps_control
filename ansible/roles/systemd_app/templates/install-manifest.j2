@@ -1,8 +1,0 @@
-{# Absolute host paths this deploy installed: a 'source' app's Quadlet files, systemd
-   units and config tree, or an 'inline' app's one rendered Quadlet. Read back verbatim by
-   read-manifest.yml, which validates every line before anything acts on it — a flat file
-   directly inside systemd_app_system_dir / systemd_app_unit_dir, or any file under this
-   app's own config tree. #}
-{% for path in systemd_app_installed_paths %}
-{{ path }}
-{% endfor %}

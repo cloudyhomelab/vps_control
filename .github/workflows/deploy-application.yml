@@ -7,9 +7,9 @@ on:
     paths:
       - 'ansible/apps/**'
       - 'ansible/playbooks/deploy_apps.yml'
-      - 'ansible/roles/systemd_app/**'
-      - 'ansible/filter_plugins/**'
       - 'ansible/ansible.cfg'
+      # The systemd_app role itself lives in binarycodes.homelab now, so a change to it
+      # reaches the VPS only by moving the pin here.
       - 'ansible/requirements.yml'
 
 # One Ansible run against the VPS at a time. The group name is shared with the weekly
