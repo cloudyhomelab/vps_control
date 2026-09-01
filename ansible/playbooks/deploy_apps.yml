@@ -19,11 +19,11 @@
   roles:
     # Deploy the shared network first so it exists before any container that
     # joins it (Network=web.network) is started.
-    - role: systemd_app
+    - role: binarycodes.homelab.systemd_app
       systemd_app_kind: source
       systemd_app_name: shared
 
-    - role: systemd_app
+    - role: binarycodes.homelab.systemd_app
       systemd_app_kind: source
       systemd_app_name: reverse_proxy
       systemd_app_enable_units:
@@ -31,7 +31,7 @@
 
     # Every routed app follows reverse_proxy: registering a route writes into the state
     # directory caddy.service mounts, so the proxy is converged before anything adds to it.
-    - role: systemd_app
+    - role: binarycodes.homelab.systemd_app
       systemd_app_kind: inline
       systemd_app_name: calculators
       systemd_app_description: Calculators web app
@@ -41,7 +41,7 @@
         FORWARD_HEADERS_STRATEGY: native
       systemd_app_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
 
-    - role: systemd_app
+    - role: binarycodes.homelab.systemd_app
       systemd_app_kind: inline
       systemd_app_name: nasplan
       systemd_app_image: docker.io/binarycodes/make-my-nas:latest
@@ -49,7 +49,7 @@
       systemd_app_domain: nasplan.cloudyhome.org
       systemd_app_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
 
-    - role: systemd_app
+    - role: binarycodes.homelab.systemd_app
       systemd_app_kind: source
       systemd_app_name: whichday
       systemd_app_enable_units:
@@ -63,7 +63,7 @@
 
     # Host upkeep, not an app: a weekly timer reclaiming the images auto-update leaves
     # untagged. No quadlet/ or config/ of its own, just the two systemd units.
-    - role: systemd_app
+    - role: binarycodes.homelab.systemd_app
       systemd_app_kind: source
       systemd_app_name: maintenance
       systemd_app_enable_units:

@@ -1,16 +1,24 @@
 ---
-# Collections the playbooks need beyond ansible-core. CI normally installs nothing: the
-# runner image ships the whole community bundle in the same pipx venv as ansible-core,
-# and ansible-core scans sys.path for collections, so this resolves out of that venv.
-# The workflows still run `ansible-galaxy collection install -r requirements.yml`, which
-# costs nothing when the image already satisfies the floor below and repairs the gap when
-# it does not. See .github/workflows/ansible-run.yml.
+# Collections the playbooks need beyond ansible-core. The install the workflows run
+# (`ansible-galaxy collection install -r requirements.yml`) is load-bearing for the first
+# entry below: binarycodes.homelab is ours and is in no runner image, so without it the
+# deploy has no systemd_app role and no filters to resolve. community.sops is a different
+# case — the runner image ships the whole community bundle in the same pipx venv as
+# ansible-core, which scans sys.path for collections, so that one usually resolves out of
+# the venv and the install merely repairs the gap when it does not.
+# See .github/workflows/ansible-run.yml.
 #
 # A floor rather than an exact pin: Dependabot tracks neither, but a floor names the
 # oldest release the playbooks actually work with and so only moves when they need
 # something newer, whereas a pin would be a version nobody updates. The sops CLI itself
 # *is* pinned, in the workflow that installs it.
 collections:
+  # The systemd_app role every app in playbooks/deploy_apps.yml is deployed by, plus the
+  # filter plugins it computes with. Extracted from this repository and published from
+  # https://github.com/cloudyhomelab/ansible-homelab-collection.
+  - name: binarycodes.homelab
+    version: ">=1.0.0"
+
   # Decrypts the SOPS-encrypted app secrets during a deploy. See ansible/SECRETS.md.
   # 2.3.0 is where load_vars gained return_method, which the systemd_app role sets so
   # what it returns does not shift with the controller's ansible-core version.
