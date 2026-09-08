@@ -17,7 +17,7 @@ collections:
   # filter plugins it computes with. Extracted from this repository and published from
   # https://github.com/cloudyhomelab/ansible-homelab-collection.
   - name: binarycodes.homelab
-    version: ">=1.0.0"
+    version: ">=1.1.0"
 
   # Decrypts the SOPS-encrypted app secrets during a deploy. See ansible/SECRETS.md.
   # 2.3.0 is where load_vars gained return_method, which the systemd_app role sets so
