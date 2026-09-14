@@ -1,0 +1,28 @@
+site_name: Dev Blog
+site_url: https://blog.binarycodes.dev/
+site_author: binarycodes
+
+theme:
+  name: devblog
+
+extra:
+  type_labels:
+    Hardware: Hardware
+  author:
+    name: binarycodes
+  social:
+    - label: GitHub
+      handle: binarycodes
+      url: https://github.com/binarycodes
+
+markdown_extensions:
+  - toc:
+      toc_depth: 3
+  - tables
+  - fenced_code
+  - codehilite:
+      css_class: highlight
+      guess_lang: false
+  - admonition
+  - attr_list
+  - footnotes

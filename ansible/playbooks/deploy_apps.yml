@@ -67,6 +67,14 @@
       systemd_app_domain: frankfurter-mcp.cloudyhome.org
       systemd_app_health_cmd: "curl -sS -o /dev/null http://127.0.0.1:8080/mcp || exit 1"
 
+    - role: binarycodes.homelab.systemd_app
+      systemd_app_kind: source
+      systemd_app_name: binarycodes-dev-blog
+      systemd_app_enable_units:
+        - binarycodes-dev-blog.service
+      systemd_app_domain: blog.binarycodes.dev
+      systemd_app_port: 8000
+
     # Host upkeep, not an app: a weekly timer reclaiming the images auto-update leaves
     # untagged. No quadlet/ or config/ of its own, just the two systemd units.
     - role: binarycodes.homelab.systemd_app
