@@ -61,6 +61,14 @@
           group: "10001"
           mode: "0700"
 
+    - role: binarycodes.homelab.systemd_app
+      systemd_app_kind: inline
+      systemd_app_name: frankfurter-mcp
+      systemd_app_image: docker.io/binarycodes/frankfurter-mcp:latest
+      systemd_app_port: 8080
+      systemd_app_domain: frankfurter-mcp.cloudyhome.org
+      systemd_app_health_cmd: "wget -qO /dev/null http://127.0.0.1:8080/ || exit 1"
+
     # Host upkeep, not an app: a weekly timer reclaiming the images auto-update leaves
     # untagged. No quadlet/ or config/ of its own, just the two systemd units.
     - role: binarycodes.homelab.systemd_app
