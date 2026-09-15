@@ -1,0 +1,18 @@
+[Unit]
+Description=Gatus status page
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/twin/gatus:stable
+ContainerName=gatus
+AutoUpdate=registry
+Volume=/var/app/gatus/config:/config:ro,Z
+Volume=/var/app/gatus/data:/data
+Network=web.network
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target default.target
