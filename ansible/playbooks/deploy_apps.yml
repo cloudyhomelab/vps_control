@@ -5,15 +5,10 @@
   gather_facts: true
 
   vars:
-    # Where this repository keeps its app definitions, one directory per app name —
-    # read by every 'source' app below, and by either kind's secrets lookup. The role
-    # has no default for it, the location being a property of this repository rather
-    # than of the role, so it is set once here for every app in the play.
+    # Where this repository keeps its app definitions, one directory per app name
     systemd_app_apps_dir: "{{ playbook_dir }}/../apps"
 
-    # How often `podman auto-update` checks the registry for the AutoUpdate=registry
-    # containers. Every 2h is 3 manifest requests per image per 6h window, well
-    # inside Docker Hub's 100-per-6h ceiling for the anonymous pulls these use.
+    # How often `podman auto-update` checks the registry for the AutoUpdate=registry containers
     podman_auto_update_oncalendar: "*-*-* 0/2:00:00"
 
   roles:
@@ -29,8 +24,6 @@
       systemd_app_enable_units:
         - caddy.service
 
-    # Every routed app follows reverse_proxy: registering a route writes into the state
-    # directory caddy.service mounts, so the proxy is converged before anything adds to it.
     - role: binarycodes.homelab.systemd_app
       systemd_app_kind: inline
       systemd_app_name: calculators
@@ -76,8 +69,17 @@
       systemd_app_port: 8000
       systemd_app_health_cmd: "wget -qO /dev/null http://127.0.0.1:8000/ || exit 1"
 
-    # Host upkeep, not an app: a weekly timer reclaiming the images auto-update leaves
-    # untagged. No quadlet/ or config/ of its own, just the two systemd units.
+    - role: binarycodes.homelab.systemd_app
+      systemd_app_kind: source
+      systemd_app_name: gatus
+      systemd_app_enable_units:
+        - gatus.service
+      systemd_app_domain: status.cloudyhome.org
+      systemd_app_data_dirs:
+        - path: data
+          mode: "0700"
+
+    # All maintenance related units/quadlets/service goes here
     - role: binarycodes.homelab.systemd_app
       systemd_app_kind: source
       systemd_app_name: maintenance
@@ -87,17 +89,13 @@
   post_tasks:
     # Per-app roles write route snippets but Caddy only applies them on reload,
     # so reload once centrally after all apps are converged. Reload, not restart,
-    # to keep existing connections up.
+    # to keep existing connections up
     - name: Reload Caddy to apply route changes
       ansible.builtin.systemd:
         name: caddy.service
         state: reloaded
 
-    # Host-wide timer that runs `podman auto-update` refreshing every container marked AutoUpdate=registry.
-    # A drop-in rather than a replacement unit, so upstream changes to the rest of
-    # the timer still apply. Not installable through the systemd_app role: that role
-    # copies flat files into its own two install dirs and its manifest allowlist
-    # refuses subdirectory paths, which is what a .timer.d/ drop-in is.
+    # Timer that runs `podman auto-update` refreshing every container marked AutoUpdate=registry
     - name: Ensure the Podman auto-update timer drop-in directory exists
       ansible.builtin.file:
         path: /etc/systemd/system/podman-auto-update.timer.d
@@ -106,10 +104,7 @@
         group: root
         mode: "0755"
 
-    # The bare OnCalendar= is load-bearing: OnCalendar accumulates, so without
-    # clearing the vendor's daily value first this would add a second schedule
-    # rather than replace it. The delay spreads the pull across the window instead
-    # of firing on an exact clock boundary, where it could meet a deploy run.
+    # OnCalendar accumulates, so the first entry clears the default value
     - name: Set the Podman auto-update check interval
       ansible.builtin.copy:
         dest: /etc/systemd/system/podman-auto-update.timer.d/override.conf
