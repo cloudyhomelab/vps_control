@@ -68,12 +68,13 @@
       systemd_app_health_cmd: "curl -sS -o /dev/null http://127.0.0.1:8080/mcp || exit 1"
 
     - role: binarycodes.homelab.systemd_app
-      systemd_app_kind: source
+      systemd_app_kind: inline
       systemd_app_name: binarycodes-dev-blog
-      systemd_app_enable_units:
-        - binarycodes-dev-blog.service
+      systemd_app_description: binarycodes - dev blog
+      systemd_app_image: docker.io/binarycodes/mkdocs-dev-blog:latest
       systemd_app_domain: blog.binarycodes.dev
       systemd_app_port: 8000
+      systemd_app_health_cmd: "wget -qO /dev/null http://127.0.0.1:8000/ || exit 1"
 
     # Host upkeep, not an app: a weekly timer reclaiming the images auto-update leaves
     # untagged. No quadlet/ or config/ of its own, just the two systemd units.
